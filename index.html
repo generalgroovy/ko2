@@ -1,1 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>K2 Sample Downloader</title>
+  <meta
+    name="description"
+    content="Browser-based sample backup and download tool for K2 / K.O. II style workflows."
+  />
 
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --panel: #171a20;
+      --panel-2: #1f242d;
+      --panel-3: #252b36;
+      --text: #f3f5f7;
+      --muted: #a9b1bc;
+      --line: #313846;
+      --accent: #f7d14a;
+      --accent-2: #f0b90b;
+      --good: #4fd18b;
+      --bad: #ff6b6b;
+      --warn: #ffb84d;
+      --shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background:
+        radial-gradient(circle at top left, rgba(247, 209, 74, 0.09), transparent 26%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 16%),
+        linear-gradient(180deg, #0d0f12 0%, #0c0e11 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100%;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .app {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .brand-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      color: #111;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 0.9rem;
+      box-shadow: var(--shadow);
+    }
+
+    .brand-copy h1 {
+      margin: 0 0 4px;
+      font-size: 1.45rem;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      background-color: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar,
+    .main {
+      min-width: 0;
+    }
+
+    .sidebar .section,
+    .main .section {
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .sidebar .section:last-child,
+    .main .section:last-child {
+      border-bottom: 0;
+    }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .section-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button,
+    .button {
+      appearance: none;
+      border: 0;
+      background: var(--panel-3);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 14px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+    }
+
+    button:hover,
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      transform: none;
+    }
+
+    .button-primary {
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      color: #111;
+      font-weight: 700;
+    }
+
+    .button-danger {
+      background: rgba(255, 107, 107, 0.15);
+      color: #ffd3d3;
+      border: 1px solid rgba(255, 107, 107, 0.25);
+    }
+
+    .button-ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+    }
+
+    .grow {
+      flex: 1 1 auto;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-size: 0.88rem;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--warn);
+      flex: 0 0 auto;
+    }
+
+    .dot.ok {
+      background: var(--good);
+    }
+
+    .dot.err {
+      background: var(--bad);
+    }
+
+    .meta-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .meta-card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .meta-label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+    }
+
+    .meta-value {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      word-break: break-word;
+    }
+
+    input,
+    select {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      outline: none;
+    }
+
+    input::placeholder {
+      color: #87909c;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar .search {
+      min-width: 220px;
+      flex: 1 1 260px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.015);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 920px;
+    }
+
+    thead th {
+      text-align: left;
+      font-size: 0.82rem;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 14px 12px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody td {
+      padding: 13px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      vertical-align: middle;
+      font-size: 0.94rem;
+    }
+
+    tbody tr:hover {
+      background: rgba(255,255,255,0.025);
+    }
+
+    tbody tr.is-selected {
+      background: rgba(247, 209, 74, 0.08);
+    }
+
+    .sample-name {
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .sample-sub {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-top: 2px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    .progress {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.15s linear;
+    }
+
+    .log {
+      max-height: 220px;
+      overflow: auto;
+      background: #0b0d10;
+      color: #d9dee5;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .app {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">K2</div>
+        <div class="brand-copy">
+          <h1>K2 Sample Downloader</h1>
+          <p>Connect, index, preview metadata, and download all samples from your device.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div id="connectionBadge" class="pill">
+          <span class="dot"></span>
+          <span>Not connected</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar card">
+        <section class="section">
+          <h2 class="section-title">Device</h2>
+          <div class="stack">
+            <button id="connectBtn" class="button-primary">Connect device</button>
+            <button id="scanBtn" class="button" disabled>Read sample index</button>
+            <button id="disconnectBtn" class="button-ghost" disabled>Disconnect</button>
+          </div>
+          <p class="footer-note">
+            This interface is modeled after the workflow of Teenage Engineering’s EP sample tool, but the transport layer below is intentionally modular.
+          </p>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Export</h2>
+          <div class="stack">
+            <button id="downloadAllBtn" class="button" disabled>Download all as ZIP</button>
+            <button id="downloadSelectedBtn" class="button" disabled>Download selected</button>
+            <button id="exportManifestBtn" class="button" disabled>Export manifest JSON</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Device info</h2>
+          <div class="meta-grid">
+            <div class="meta-card">
+              <div class="meta-label">Model</div>
+              <div id="metaModel" class="meta-value">—</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Firmware</div>
+              <div id="metaFirmware" class="meta-value">—</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Samples</div>
+              <div id="metaCount" class="meta-value">0</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-label">Used storage</div>
+              <div id="metaStorage" class="meta-value">—</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Progress</h2>
+          <div class="stack">
+            <div class="progress" aria-label="Download progress">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div id="progressText" class="section-copy">Idle</div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">Log</h2>
+          <div id="log" class="log">Ready.</div>
+        </section>
+      </aside>
+
+      <main class="main card">
+        <section class="section">
+          <div class="toolbar">
+            <input id="searchInput" class="search" type="text" placeholder="Search samples, banks, pads, tags..." />
+            <select id="bankFilter">
+              <option value="">All banks</option>
+            </select>
+            <select id="sortSelect">
+              <option value="pad">Sort by pad</option>
+              <option value="name">Sort by name</option>
+              <option value="size">Sort by size</option>
+              <option value="duration">Sort by duration</option>
+            </select>
+            <button id="selectAllBtn" class="button-ghost" disabled>Select all</button>
+            <button id="clearSelectionBtn" class="button-ghost" disabled>Clear</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 44px;">
+                    <input id="masterCheckbox" type="checkbox" />
+                  </th>
+                  <th>Sample</th>
+                  <th>Bank</th>
+                  <th>Pad</th>
+                  <th>Length</th>
+                  <th>Rate</th>
+                  <th>Channels</th>
+                  <th>Size</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="samplesTbody">
+                <tr>
+                  <td colspan="9" style="padding: 28px; color: var(--muted); text-align: center;">
+                    Connect a device, then read the sample index.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="footer-note">
+            Tip: export the manifest first if you want a portable index of slot, pad, and file metadata before pulling audio blobs.
+          </p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script>
+    const state = {
+      device: null,
+      deviceInfo: null,
+      samples: [],
+      filteredSamples: [],
+      selected: new Set(),
+      connected: false
+    };
+
+    const els = {
+      connectBtn: document.getElementById("connectBtn"),
+      scanBtn: document.getElementById("scanBtn"),
+      disconnectBtn: document.getElementById("disconnectBtn"),
+      downloadAllBtn: document.getElementById("downloadAllBtn"),
+      downloadSelectedBtn: document.getElementById("downloadSelectedBtn"),
+      exportManifestBtn: document.getElementById("exportManifestBtn"),
+      connectionBadge: document.getElementById("connectionBadge"),
+      progressBar: document.getElementById("progressBar"),
+      progressText: document.getElementById("progressText"),
+      log: document.getElementById("log"),
+      searchInput: document.getElementById("searchInput"),
+      bankFilter: document.getElementById("bankFilter"),
+      sortSelect: document.getElementById("sortSelect"),
+      selectAllBtn: document.getElementById("selectAllBtn"),
+      clearSelectionBtn: document.getElementById("clearSelectionBtn"),
+      masterCheckbox: document.getElementById("masterCheckbox"),
+      samplesTbody: document.getElementById("samplesTbody"),
+      metaModel: document.getElementById("metaModel"),
+      metaFirmware: document.getElementById("metaFirmware"),
+      metaCount: document.getElementById("metaCount"),
+      metaStorage: document.getElementById("metaStorage")
+    };
+
+    function log(message) {
+      const stamp = new Date().toLocaleTimeString();
+      els.log.textContent += `\n[${stamp}] ${message}`;
+      els.log.scrollTop = els.log.scrollHeight;
+    }
+
+    function setConnectionBadge(kind, text) {
+      const dotClass =
+        kind === "ok" ? "dot ok" :
+        kind === "err" ? "dot err" :
+        "dot";
+
+      els.connectionBadge.innerHTML = `
+        <span class="${dotClass}"></span>
+        <span>${escapeHtml(text)}</span>
+      `;
+    }
+
+    function setProgress(percent, text) {
+      const safePercent = Math.max(0, Math.min(100, percent || 0));
+      els.progressBar.style.width = `${safePercent}%`;
+      els.progressText.textContent = text || "Idle";
+    }
+
+    function setBusy(isBusy) {
+      els.connectBtn.disabled = isBusy || state.connected;
+      els.scanBtn.disabled = isBusy || !state.connected;
+      els.disconnectBtn.disabled = isBusy || !state.connected;
+      els.downloadAllBtn.disabled = isBusy || !state.connected || !state.samples.length;
+      els.downloadSelectedBtn.disabled = isBusy || !state.connected || !state.selected.size;
+      els.exportManifestBtn.disabled = isBusy || !state.samples.length;
+      els.selectAllBtn.disabled = isBusy || !state.samples.length;
+      els.clearSelectionBtn.disabled = isBusy || !state.selected.size;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function bytesToHuman(bytes) {
+      if (!Number.isFinite(bytes)) return "—";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function msToHuman(ms) {
+      if (!Number.isFinite(ms)) return "—";
+      const totalSeconds = Math.round(ms / 1000);
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      return mins ? `${mins}:${String(secs).padStart(2, "0")}` : `${secs}s`;
+    }
+
+    function populateBankFilter() {
+      const banks = [...new Set(state.samples.map(s => s.bank).filter(Boolean))].sort();
+      const current = els.bankFilter.value;
+      els.bankFilter.innerHTML = `<option value="">All banks</option>`;
+      for (const bank of banks) {
+        const option = document.createElement("option");
+        option.value = bank;
+        option.textContent = bank;
+        els.bankFilter.appendChild(option);
+      }
+      if (banks.includes(current)) {
+        els.bankFilter.value = current;
+      }
+    }
+
+    function updateMeta() {
+      els.metaModel.textContent = state.deviceInfo?.model || "Unknown";
+      els.metaFirmware.textContent = state.deviceInfo?.firmware || "Unknown";
+      els.metaCount.textContent = String(state.samples.length);
+
+      const totalBytes = state.samples.reduce((sum, sample) => sum + (sample.sizeBytes || 0), 0);
+      els.metaStorage.textContent = totalBytes ? bytesToHuman(totalBytes) : "—";
+    }
+
+    function applyFilters() {
+      const q = els.searchInput.value.trim().toLowerCase();
+      const bank = els.bankFilter.value;
+      const sortBy = els.sortSelect.value;
+
+      let rows = [...state.samples];
+
+      if (q) {
+        rows = rows.filter(sample => {
+          const haystack = [
+            sample.name,
+            sample.bank,
+            sample.pad,
+            sample.id,
+            ...(sample.tags || [])
+          ].join(" ").toLowerCase();
+          return haystack.includes(q);
+        });
+      }
+
+      if (bank) {
+        rows = rows.filter(sample => sample.bank === bank);
+      }
+
+      rows.sort((a, b) => {
+        switch (sortBy) {
+          case "name":
+            return String(a.name).localeCompare(String(b.name));
+          case "size":
+            return (a.sizeBytes || 0) - (b.sizeBytes || 0);
+          case "duration":
+            return (a.durationMs || 0) - (b.durationMs || 0);
+          case "pad":
+          default:
+            return String(a.pad || "").localeCompare(String(b.pad || ""));
+        }
+      });
+
+      state.filteredSamples = rows;
+      renderTable();
+      syncMasterCheckbox();
+      setBusy(false);
+    }
+
+    function renderTable() {
+      if (!state.filteredSamples.length) {
+        els.samplesTbody.innerHTML = `
+          <tr>
+            <td colspan="9" style="padding: 28px; color: var(--muted); text-align: center;">
+              No samples match the current filters.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      els.samplesTbody.innerHTML = state.filteredSamples.map(sample => {
+        const isSelected = state.selected.has(sample.id);
+        return `
+          <tr class="${isSelected ? "is-selected" : ""}" data-id="${escapeHtml(sample.id)}">
+            <td>
+              <input class="row-check" type="checkbox" data-id="${escapeHtml(sample.id)}" ${isSelected ? "checked" : ""} />
+            </td>
+            <td>
+              <div class="sample-name">${escapeHtml(sample.name || "Untitled")}</div>
+              <div class="sample-sub mono">${escapeHtml(sample.id || "")}</div>
+            </td>
+            <td>${escapeHtml(sample.bank || "—")}</td>
+            <td class="mono">${escapeHtml(sample.pad || "—")}</td>
+            <td>${escapeHtml(msToHuman(sample.durationMs))}</td>
+            <td>${escapeHtml(sample.sampleRate ? `${sample.sampleRate} Hz` : "—")}</td>
+            <td>${escapeHtml(sample.channels ? String(sample.channels) : "—")}</td>
+            <td>${escapeHtml(bytesToHuman(sample.sizeBytes))}</td>
+            <td>
+              <button class="button-ghost single-download" data-id="${escapeHtml(sample.id)}">Download</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function syncMasterCheckbox() {
+      if (!state.filteredSamples.length) {
+        els.masterCheckbox.checked = false;
+        els.masterCheckbox.indeterminate = false;
+        return;
+      }
+
+      const visibleIds = state.filteredSamples.map(s => s.id);
+      const selectedCount = visibleIds.filter(id => state.selected.has(id)).length;
+
+      els.masterCheckbox.checked = selectedCount > 0 && selectedCount === visibleIds.length;
+      els.masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < visibleIds.length;
+    }
+
+    function updateSelectionButtons() {
+      els.downloadSelectedBtn.disabled = !state.connected || !state.selected.size;
+      els.clearSelectionBtn.disabled = !state.selected.size;
+      setBusy(false);
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function makeSafeFilename(name) {
+      return String(name || "sample")
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    async function connectDevice() {
+      if (!("usb" in navigator)) {
+        throw new Error("WebUSB is not available in this browser.");
+      }
+
+      log("Requesting USB device access...");
+
+      /*
+        Replace the filters below with the real vendor/product IDs for the target hardware.
+        If you have reverse engineered the device, add the correct USB filters here.
+      */
+      const requestedDevice = await navigator.usb.requestDevice({
+        filters: [
+          // Example placeholders:
+          // { vendorId: 0x0000, productId: 0x0000 }
+        ]
+      });
+
+      await requestedDevice.open();
+
+      /*
+        Real devices may need selectConfiguration / claimInterface / controlTransferIn/Out.
+        Add the concrete handshake here once you have the protocol details.
+      */
+
+      state.device = requestedDevice;
+      state.connected = true;
+
+      state.deviceInfo = await K2Protocol.getDeviceInfo(requestedDevice);
+
+      setConnectionBadge("ok", `Connected: ${state.deviceInfo.model || requestedDevice.productName || "Device"}`);
+      log(`Connected to ${state.deviceInfo.model || requestedDevice.productName || "device"}.`);
+      updateMeta();
+      setBusy(false);
+    }
+
+    async function disconnectDevice() {
+      try {
+        if (state.device?.opened) {
+          await state.device.close();
+        }
+      } catch (error) {
+        log(`Warning while disconnecting: ${error.message}`);
+      }
+
+      state.device = null;
+      state.connected = false;
+      state.deviceInfo = null;
+      state.samples = [];
+      state.filteredSamples = [];
+      state.selected.clear();
+
+      setConnectionBadge("warn", "Not connected");
+      setProgress(0, "Idle");
+      updateMeta();
+      populateBankFilter();
+      renderTable();
+      updateSelectionButtons();
+      setBusy(false);
+      log("Disconnected.");
+    }
+
+    async function readSampleIndex() {
+      if (!state.device) {
+        throw new Error("No device connected.");
+      }
+
+      setBusy(true);
+      setProgress(10, "Reading sample index...");
+      log("Reading sample index from device...");
+
+      const samples = await K2Protocol.listSamples(state.device, progress => {
+        setProgress(progress, "Reading sample index...");
+      });
+
+      state.samples = samples;
+      state.selected.clear();
+
+      populateBankFilter();
+      updateMeta();
+      applyFilters();
+
+      setProgress(100, `Loaded ${samples.length} sample${samples.length === 1 ? "" : "s"}.`);
+      log(`Indexed ${samples.length} samples.`);
+      setBusy(false);
+    }
+
+    async function downloadOneSample(sample) {
+      log(`Downloading sample: ${sample.name} (${sample.id})`);
+      const blob = await K2Protocol.readSampleBlob(state.device, sample);
+      const ext = sample.extension || "wav";
+      const filename = `${makeSafeFilename(sample.pad || "pad")}_${makeSafeFilename(sample.name || sample.id)}.${ext}`;
+      downloadBlob(blob, filename);
+      log(`Saved ${filename}`);
+    }
+
+    async function downloadSelected() {
+      const selectedSamples = state.samples.filter(s => state.selected.has(s.id));
+      if (!selectedSamples.length) return;
+
+      setBusy(true);
+      log(`Downloading ${selectedSamples.length} selected sample(s)...`);
+
+      let done = 0;
+      for (const sample of selectedSamples) {
+        setProgress((done / selectedSamples.length) * 100, `Downloading ${done}/${selectedSamples.length}...`);
+        await downloadOneSample(sample);
+        done += 1;
+      }
+
+      setProgress(100, `Downloaded ${done} sample(s).`);
+      setBusy(false);
+    }
+
+    async function downloadAllAsZip() {
+      if (!state.samples.length) return;
+
+      setBusy(true);
+      log(`Preparing ZIP archive for ${state.samples.length} samples...`);
+
+      const zip = new JSZip();
+      const manifest = [];
+
+      for (let i = 0; i < state.samples.length; i += 1) {
+        const sample = state.samples[i];
+        const percent = Math.round((i / state.samples.length) * 100);
+        setProgress(percent, `Downloading ${i + 1}/${state.samples.length}: ${sample.name}`);
+
+        const blob = await K2Protocol.readSampleBlob(state.device, sample);
+        const ext = sample.extension || "wav";
+        const filename = `${makeSafeFilename(sample.pad || "pad")}_${makeSafeFilename(sample.name || sample.id)}.${ext}`;
+
+        zip.file(filename, blob);
+        manifest.push({
+          ...sample,
+          archiveFilename: filename
+        });
+      }
+
+      zip.file("manifest.json", JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        device: state.deviceInfo,
+        count: manifest.length,
+        samples: manifest
+      }, null, 2));
+
+      setProgress(96, "Building ZIP...");
+      const zipBlob = await zip.generateAsync(
+        { type: "blob" },
+        metadata => {
+          const pct = 96 + (metadata.percent / 100) * 4;
+          setProgress(pct, `Building ZIP... ${Math.round(metadata.percent)}%`);
+        }
+      );
+
+      const timestamp = new Date().toISOString().replaceAll(":", "-");
+      downloadBlob(zipBlob, `k2-samples-${timestamp}.zip`);
+
+      setProgress(100, "ZIP download ready.");
+      log("ZIP archive created.");
+      setBusy(false);
+    }
+
+    function exportManifest() {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        device: state.deviceInfo,
+        count: state.samples.length,
+        samples: state.samples
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json"
+      });
+
+      const timestamp = new Date().toISOString().replaceAll(":", "-");
+      downloadBlob(blob, `k2-sample-index-${timestamp}.json`);
+      log("Exported manifest JSON.");
+    }
+
+    const K2Protocol = {
+      async getDeviceInfo(device) {
+        /*
+          TODO: Replace this stub with real transport logic.
+
+          Suggested return shape:
+          {
+            model: "EP–133 K.O. II",
+            firmware: "2.0.5"
+          }
+        */
+
+        return {
+          model: device.productName || "K2 / KO Device",
+          firmware: "Unknown"
+        };
+      },
+
+      async listSamples(device, onProgress = () => {}) {
+        /*
+          TODO: Replace this stub with actual hardware enumeration.
+
+          Each sample object should look like:
+          {
+            id: "sample-0001",
+            name: "Kick 01",
+            bank: "A",
+            pad: "A1",
+            durationMs: 382,
+            sampleRate: 46875,
+            channels: 1,
+            sizeBytes: 35812,
+            extension: "wav",
+            tags: ["drum", "kick"]
+          }
+
+          If you already know the device protocol, this is where you:
+          - send the index/list command
+          - parse the device response
+          - map slots/pads to metadata
+        */
+
+        onProgress(20);
+        await delay(120);
+        onProgress(45);
+        await delay(120);
+        onProgress(72);
+        await delay(120);
+        onProgress(100);
+
+        // Demo data so the interface works immediately.
+        return [
+          {
+            id: "smp-0001",
+            name: "Kick Analog",
+            bank: "A",
+            pad: "A1",
+            durationMs: 420,
+            sampleRate: 46875,
+            channels: 1,
+            sizeBytes: 39422,
+            extension: "wav",
+            tags: ["kick", "drum"]
+          },
+          {
+            id: "smp-0002",
+            name: "Snare Dust",
+            bank: "A",
+            pad: "A2",
+            durationMs: 510,
+            sampleRate: 46875,
+            channels: 1,
+            sizeBytes: 49220,
+            extension: "wav",
+            tags: ["snare", "drum"]
+          },
+          {
+            id: "smp-0003",
+            name: "Hat Short",
+            bank: "A",
+            pad: "A3",
+            durationMs: 140,
+            sampleRate: 46875,
+            channels: 1,
+            sizeBytes: 13218,
+            extension: "wav",
+            tags: ["hat", "drum"]
+          },
+          {
+            id: "smp-0016",
+            name: "Chord Vox",
+            bank: "B",
+            pad: "B4",
+            durationMs: 2470,
+            sampleRate: 44100,
+            channels: 2,
+            sizeBytes: 228412,
+            extension: "wav",
+            tags: ["musical", "stereo"]
+          },
+          {
+            id: "smp-0032",
+            name: "Bass One-Shot",
+            bank: "C",
+            pad: "C8",
+            durationMs: 1090,
+            sampleRate: 32000,
+            channels: 1,
+            sizeBytes: 70218,
+            extension: "wav",
+            tags: ["bass"]
+          }
+        ];
+      },
+
+      async readSampleBlob(device, sample) {
+        /*
+          TODO: Replace this stub with the actual command that pulls raw sample bytes
+          from the hardware for the given sample slot/id.
+
+          Return a Blob, usually WAV if that is the format your dump routine produces.
+        */
+
+        await delay(140);
+
+        // Generates a tiny placeholder WAV-like payload so the UI flow works.
+        const content = new TextEncoder().encode(
+          `Placeholder audio payload for ${sample.name} (${sample.id}). Replace K2Protocol.readSampleBlob() with real device read logic.`
+        );
+
+        return new Blob([content], { type: "application/octet-stream" });
+      }
+    };
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    els.connectBtn.addEventListener("click", async () => {
+      try {
+        setBusy(true);
+        await connectDevice();
+      } catch (error) {
+        setConnectionBadge("err", "Connection failed");
+        log(`Connection failed: ${error.message}`);
+        setBusy(false);
+      }
+    });
+
+    els.disconnectBtn.addEventListener("click", async () => {
+      await disconnectDevice();
+    });
+
+    els.scanBtn.addEventListener("click", async () => {
+      try {
+        await readSampleIndex();
+      } catch (error) {
+        log(`Index read failed: ${error.message}`);
+        setProgress(0, "Idle");
+        setBusy(false);
+      }
+    });
+
+    els.downloadSelectedBtn.addEventListener("click", async () => {
+      try {
+        await downloadSelected();
+      } catch (error) {
+        log(`Selected download failed: ${error.message}`);
+        setProgress(0, "Idle");
+        setBusy(false);
+      }
+    });
+
+    els.downloadAllBtn.addEventListener("click", async () => {
+      try {
+        await downloadAllAsZip();
+      } catch (error) {
+        log(`ZIP export failed: ${error.message}`);
+        setProgress(0, "Idle");
+        setBusy(false);
+      }
+    });
+
+    els.exportManifestBtn.addEventListener("click", () => {
+      try {
+        exportManifest();
+      } catch (error) {
+        log(`Manifest export failed: ${error.message}`);
+      }
+    });
+
+    els.searchInput.addEventListener("input", applyFilters);
+    els.bankFilter.addEventListener("change", applyFilters);
+    els.sortSelect.addEventListener("change", applyFilters);
+
+    els.selectAllBtn.addEventListener("click", () => {
+      for (const sample of state.filteredSamples) {
+        state.selected.add(sample.id);
+      }
+      applyFilters();
+      updateSelectionButtons();
+    });
+
+    els.clearSelectionBtn.addEventListener("click", () => {
+      state.selected.clear();
+      applyFilters();
+      updateSelectionButtons();
+    });
+
+    els.masterCheckbox.addEventListener("change", () => {
+      const ids = state.filteredSamples.map(s => s.id);
+      if (els.masterCheckbox.checked) {
+        ids.forEach(id => state.selected.add(id));
+      } else {
+        ids.forEach(id => state.selected.delete(id));
+      }
+      applyFilters();
+      updateSelectionButtons();
+    });
+
+    els.samplesTbody.addEventListener("change", event => {
+      const checkbox = event.target.closest(".row-check");
+      if (!checkbox) return;
+
+      const { id } = checkbox.dataset;
+      if (checkbox.checked) {
+        state.selected.add(id);
+      } else {
+        state.selected.delete(id);
+      }
+
+      const row = checkbox.closest("tr");
+      row?.classList.toggle("is-selected", checkbox.checked);
+
+      syncMasterCheckbox();
+      updateSelectionButtons();
+    });
+
+    els.samplesTbody.addEventListener("click", async event => {
+      const button = event.target.closest(".single-download");
+      if (!button) return;
+
+      const { id } = button.dataset;
+      const sample = state.samples.find(s => s.id === id);
+      if (!sample) return;
+
+      try {
+        setBusy(true);
+        setProgress(20, `Downloading ${sample.name}...`);
+        await downloadOneSample(sample);
+        setProgress(100, `Downloaded ${sample.name}.`);
+      } catch (error) {
+        log(`Single download failed: ${error.message}`);
+        setProgress(0, "Idle");
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      setConnectionBadge("warn", "Not connected");
+      renderTable();
+      updateMeta();
+      setBusy(false);
+    });
+  </script>
+</body>
+</html>
