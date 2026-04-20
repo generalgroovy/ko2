@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>K2 Sample Downloader</title>
   <meta
     name="description"
@@ -15,18 +12,19 @@
   <style>
     :root {
       --bg: #0d0f12;
-      --panel: #171a20;
-      --panel-2: #1f242d;
-      --panel-3: #252b36;
+      --bg2: #12161c;
+      --panel: #171b22;
+      --panel-2: #1f2530;
+      --panel-3: #2a3240;
       --text: #f3f5f7;
-      --muted: #a9b1bc;
-      --line: #313846;
-      --accent: #f7d14a;
-      --accent-2: #f0b90b;
+      --muted: #aab2be;
+      --line: #313948;
+      --accent: #f6d24b;
+      --accent-2: #e8b508;
       --good: #4fd18b;
       --bad: #ff6b6b;
       --warn: #ffb84d;
-      --shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+      --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
       --radius: 18px;
     }
 
@@ -38,17 +36,19 @@
     body {
       margin: 0;
       padding: 0;
-      background:
-        radial-gradient(circle at top left, rgba(247, 209, 74, 0.09), transparent 26%),
-        radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 16%),
-        linear-gradient(180deg, #0d0f12 0%, #0c0e11 100%);
+      min-height: 100%;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      min-height: 100%;
+    }
+
+    body {
+      min-height: 100vh;
     }
 
     a {
       color: inherit;
+      text-decoration: none;
     }
 
     .app {
@@ -83,6 +83,7 @@
       font-weight: 900;
       font-size: 0.9rem;
       box-shadow: var(--shadow);
+      flex: 0 0 auto;
     }
 
     .brand-copy h1 {
@@ -102,6 +103,7 @@
       display: grid;
       grid-template-columns: 320px 1fr;
       gap: 20px;
+      align-items: start;
     }
 
     .card {
@@ -157,7 +159,7 @@
     button,
     .button {
       appearance: none;
-      border: 0;
+      border: 1px solid transparent;
       background: var(--panel-3);
       color: var(--text);
       padding: 12px 14px;
@@ -172,7 +174,8 @@
       transform: translateY(-1px);
     }
 
-    button:disabled {
+    button:disabled,
+    .button:disabled {
       cursor: not-allowed;
       opacity: 0.45;
       transform: none;
@@ -192,11 +195,8 @@
 
     .button-ghost {
       background: transparent;
+      color: var(--text);
       border: 1px solid var(--line);
-    }
-
-    .grow {
-      flex: 1 1 auto;
     }
 
     .pill {
@@ -302,7 +302,7 @@
       color: var(--muted);
       font-weight: 700;
       padding: 14px 12px;
-      background: rgba(255,255,255,0.02);
+      background: rgba(255,255,255,0.03);
       border-bottom: 1px solid var(--line);
       position: sticky;
       top: 0;
@@ -321,7 +321,7 @@
     }
 
     tbody tr.is-selected {
-      background: rgba(247, 209, 74, 0.08);
+      background: rgba(246, 210, 75, 0.08);
     }
 
     .sample-name {
@@ -381,6 +381,15 @@
       display: none !important;
     }
 
+    .noscript {
+      margin: 20px 0;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 184, 77, 0.35);
+      background: rgba(255, 184, 77, 0.12);
+      color: #ffe0ad;
+    }
+
     @media (max-width: 980px) {
       .layout {
         grid-template-columns: 1fr;
@@ -395,6 +404,12 @@
 </head>
 <body>
   <div class="app">
+    <noscript>
+      <div class="noscript">
+        JavaScript is disabled. The page UI can render, but device connection and downloading need JavaScript enabled.
+      </div>
+    </noscript>
+
     <header class="topbar">
       <div class="brand">
         <div class="brand-badge">K2</div>
@@ -417,21 +432,21 @@
         <section class="section">
           <h2 class="section-title">Device</h2>
           <div class="stack">
-            <button id="connectBtn" class="button-primary">Connect device</button>
-            <button id="scanBtn" class="button" disabled>Read sample index</button>
-            <button id="disconnectBtn" class="button-ghost" disabled>Disconnect</button>
+            <button id="connectBtn" class="button-primary" type="button">Connect device</button>
+            <button id="scanBtn" type="button" disabled>Read sample index</button>
+            <button id="disconnectBtn" class="button-ghost" type="button" disabled>Disconnect</button>
           </div>
           <p class="footer-note">
-            This interface is modeled after the workflow of Teenage Engineering’s EP sample tool, but the transport layer below is intentionally modular.
+            Interface inspired by the EP sample tool workflow. The transport layer is left modular so you can wire in the actual K2 protocol.
           </p>
         </section>
 
         <section class="section">
           <h2 class="section-title">Export</h2>
           <div class="stack">
-            <button id="downloadAllBtn" class="button" disabled>Download all as ZIP</button>
-            <button id="downloadSelectedBtn" class="button" disabled>Download selected</button>
-            <button id="exportManifestBtn" class="button" disabled>Export manifest JSON</button>
+            <button id="downloadAllBtn" type="button" disabled>Download all as ZIP</button>
+            <button id="downloadSelectedBtn" type="button" disabled>Download selected</button>
+            <button id="exportManifestBtn" type="button" disabled>Export manifest JSON</button>
           </div>
         </section>
 
@@ -486,8 +501,8 @@
               <option value="size">Sort by size</option>
               <option value="duration">Sort by duration</option>
             </select>
-            <button id="selectAllBtn" class="button-ghost" disabled>Select all</button>
-            <button id="clearSelectionBtn" class="button-ghost" disabled>Clear</button>
+            <button id="selectAllBtn" class="button-ghost" type="button" disabled>Select all</button>
+            <button id="clearSelectionBtn" class="button-ghost" type="button" disabled>Clear</button>
           </div>
         </section>
 
@@ -526,8 +541,6 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
   <script>
     const state = {
       device: null,
@@ -535,7 +548,8 @@
       samples: [],
       filteredSamples: [],
       selected: new Set(),
-      connected: false
+      connected: false,
+      JSZipReady: typeof window.JSZip !== "undefined"
     };
 
     const els = {
@@ -564,7 +578,7 @@
 
     function log(message) {
       const stamp = new Date().toLocaleTimeString();
-      els.log.textContent += `\n[${stamp}] ${message}`;
+      els.log.textContent += "\n[" + stamp + "] " + message;
       els.log.scrollTop = els.log.scrollHeight;
     }
 
@@ -574,36 +588,35 @@
         kind === "err" ? "dot err" :
         "dot";
 
-      els.connectionBadge.innerHTML = `
-        <span class="${dotClass}"></span>
-        <span>${escapeHtml(text)}</span>
-      `;
+      els.connectionBadge.innerHTML =
+        '<span class="' + dotClass + '"></span>' +
+        '<span>' + escapeHtml(text) + "</span>";
     }
 
     function setProgress(percent, text) {
-      const safePercent = Math.max(0, Math.min(100, percent || 0));
-      els.progressBar.style.width = `${safePercent}%`;
+      const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+      els.progressBar.style.width = safePercent + "%";
       els.progressText.textContent = text || "Idle";
     }
 
     function setBusy(isBusy) {
-      els.connectBtn.disabled = isBusy || state.connected;
-      els.scanBtn.disabled = isBusy || !state.connected;
-      els.disconnectBtn.disabled = isBusy || !state.connected;
-      els.downloadAllBtn.disabled = isBusy || !state.connected || !state.samples.length;
-      els.downloadSelectedBtn.disabled = isBusy || !state.connected || !state.selected.size;
-      els.exportManifestBtn.disabled = isBusy || !state.samples.length;
-      els.selectAllBtn.disabled = isBusy || !state.samples.length;
-      els.clearSelectionBtn.disabled = isBusy || !state.selected.size;
+      els.connectBtn.disabled = !!isBusy || state.connected;
+      els.scanBtn.disabled = !!isBusy || !state.connected;
+      els.disconnectBtn.disabled = !!isBusy || !state.connected;
+      els.downloadAllBtn.disabled = !!isBusy || !state.connected || !state.samples.length;
+      els.downloadSelectedBtn.disabled = !!isBusy || !state.connected || !state.selected.size;
+      els.exportManifestBtn.disabled = !!isBusy || !state.samples.length;
+      els.selectAllBtn.disabled = !!isBusy || !state.samples.length;
+      els.clearSelectionBtn.disabled = !!isBusy || !state.selected.size;
     }
 
     function escapeHtml(value) {
       return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
     function bytesToHuman(bytes) {
@@ -615,7 +628,7 @@
         size /= 1024;
         unit += 1;
       }
-      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+      return (size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)) + " " + units[unit];
     }
 
     function msToHuman(ms) {
@@ -623,30 +636,42 @@
       const totalSeconds = Math.round(ms / 1000);
       const mins = Math.floor(totalSeconds / 60);
       const secs = totalSeconds % 60;
-      return mins ? `${mins}:${String(secs).padStart(2, "0")}` : `${secs}s`;
+      return mins ? mins + ":" + String(secs).padStart(2, "0") : secs + "s";
     }
 
     function populateBankFilter() {
-      const banks = [...new Set(state.samples.map(s => s.bank).filter(Boolean))].sort();
+      const banks = [];
+      state.samples.forEach(function(sample) {
+        if (sample.bank && banks.indexOf(sample.bank) === -1) {
+          banks.push(sample.bank);
+        }
+      });
+      banks.sort();
+
       const current = els.bankFilter.value;
-      els.bankFilter.innerHTML = `<option value="">All banks</option>`;
-      for (const bank of banks) {
+      els.bankFilter.innerHTML = '<option value="">All banks</option>';
+
+      banks.forEach(function(bank) {
         const option = document.createElement("option");
         option.value = bank;
         option.textContent = bank;
         els.bankFilter.appendChild(option);
-      }
-      if (banks.includes(current)) {
+      });
+
+      if (banks.indexOf(current) !== -1) {
         els.bankFilter.value = current;
       }
     }
 
     function updateMeta() {
-      els.metaModel.textContent = state.deviceInfo?.model || "Unknown";
-      els.metaFirmware.textContent = state.deviceInfo?.firmware || "Unknown";
+      els.metaModel.textContent = state.deviceInfo && state.deviceInfo.model ? state.deviceInfo.model : "Unknown";
+      els.metaFirmware.textContent = state.deviceInfo && state.deviceInfo.firmware ? state.deviceInfo.firmware : "Unknown";
       els.metaCount.textContent = String(state.samples.length);
 
-      const totalBytes = state.samples.reduce((sum, sample) => sum + (sample.sizeBytes || 0), 0);
+      let totalBytes = 0;
+      state.samples.forEach(function(sample) {
+        totalBytes += sample.sizeBytes || 0;
+      });
       els.metaStorage.textContent = totalBytes ? bytesToHuman(totalBytes) : "—";
     }
 
@@ -655,37 +680,38 @@
       const bank = els.bankFilter.value;
       const sortBy = els.sortSelect.value;
 
-      let rows = [...state.samples];
+      let rows = state.samples.slice();
 
       if (q) {
-        rows = rows.filter(sample => {
+        rows = rows.filter(function(sample) {
           const haystack = [
-            sample.name,
-            sample.bank,
-            sample.pad,
-            sample.id,
-            ...(sample.tags || [])
+            sample.name || "",
+            sample.bank || "",
+            sample.pad || "",
+            sample.id || "",
+            Array.isArray(sample.tags) ? sample.tags.join(" ") : ""
           ].join(" ").toLowerCase();
-          return haystack.includes(q);
+          return haystack.indexOf(q) !== -1;
         });
       }
 
       if (bank) {
-        rows = rows.filter(sample => sample.bank === bank);
+        rows = rows.filter(function(sample) {
+          return sample.bank === bank;
+        });
       }
 
-      rows.sort((a, b) => {
-        switch (sortBy) {
-          case "name":
-            return String(a.name).localeCompare(String(b.name));
-          case "size":
-            return (a.sizeBytes || 0) - (b.sizeBytes || 0);
-          case "duration":
-            return (a.durationMs || 0) - (b.durationMs || 0);
-          case "pad":
-          default:
-            return String(a.pad || "").localeCompare(String(b.pad || ""));
+      rows.sort(function(a, b) {
+        if (sortBy === "name") {
+          return String(a.name || "").localeCompare(String(b.name || ""));
         }
+        if (sortBy === "size") {
+          return (a.sizeBytes || 0) - (b.sizeBytes || 0);
+        }
+        if (sortBy === "duration") {
+          return (a.durationMs || 0) - (b.durationMs || 0);
+        }
+        return String(a.pad || "").localeCompare(String(b.pad || ""));
       });
 
       state.filteredSamples = rows;
@@ -696,39 +722,39 @@
 
     function renderTable() {
       if (!state.filteredSamples.length) {
-        els.samplesTbody.innerHTML = `
-          <tr>
-            <td colspan="9" style="padding: 28px; color: var(--muted); text-align: center;">
-              No samples match the current filters.
-            </td>
-          </tr>
-        `;
+        els.samplesTbody.innerHTML =
+          '<tr><td colspan="9" style="padding: 28px; color: var(--muted); text-align: center;">' +
+          'No samples match the current filters.' +
+          "</td></tr>";
         return;
       }
 
-      els.samplesTbody.innerHTML = state.filteredSamples.map(sample => {
+      let html = "";
+
+      state.filteredSamples.forEach(function(sample) {
         const isSelected = state.selected.has(sample.id);
-        return `
-          <tr class="${isSelected ? "is-selected" : ""}" data-id="${escapeHtml(sample.id)}">
-            <td>
-              <input class="row-check" type="checkbox" data-id="${escapeHtml(sample.id)}" ${isSelected ? "checked" : ""} />
-            </td>
-            <td>
-              <div class="sample-name">${escapeHtml(sample.name || "Untitled")}</div>
-              <div class="sample-sub mono">${escapeHtml(sample.id || "")}</div>
-            </td>
-            <td>${escapeHtml(sample.bank || "—")}</td>
-            <td class="mono">${escapeHtml(sample.pad || "—")}</td>
-            <td>${escapeHtml(msToHuman(sample.durationMs))}</td>
-            <td>${escapeHtml(sample.sampleRate ? `${sample.sampleRate} Hz` : "—")}</td>
-            <td>${escapeHtml(sample.channels ? String(sample.channels) : "—")}</td>
-            <td>${escapeHtml(bytesToHuman(sample.sizeBytes))}</td>
-            <td>
-              <button class="button-ghost single-download" data-id="${escapeHtml(sample.id)}">Download</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
+        html +=
+          '<tr class="' + (isSelected ? "is-selected" : "") + '" data-id="' + escapeHtml(sample.id) + '">' +
+            "<td>" +
+              '<input class="row-check" type="checkbox" data-id="' + escapeHtml(sample.id) + '"' + (isSelected ? " checked" : "") + " />" +
+            "</td>" +
+            "<td>" +
+              '<div class="sample-name">' + escapeHtml(sample.name || "Untitled") + "</div>" +
+              '<div class="sample-sub mono">' + escapeHtml(sample.id || "") + "</div>" +
+            "</td>" +
+            "<td>" + escapeHtml(sample.bank || "—") + "</td>" +
+            '<td class="mono">' + escapeHtml(sample.pad || "—") + "</td>" +
+            "<td>" + escapeHtml(msToHuman(sample.durationMs)) + "</td>" +
+            "<td>" + escapeHtml(sample.sampleRate ? sample.sampleRate + " Hz" : "—") + "</td>" +
+            "<td>" + escapeHtml(sample.channels ? String(sample.channels) : "—") + "</td>" +
+            "<td>" + escapeHtml(bytesToHuman(sample.sizeBytes)) + "</td>" +
+            "<td>" +
+              '<button class="button-ghost single-download" type="button" data-id="' + escapeHtml(sample.id) + '">Download</button>' +
+            "</td>" +
+          "</tr>";
+      });
+
+      els.samplesTbody.innerHTML = html;
     }
 
     function syncMasterCheckbox() {
@@ -738,8 +764,8 @@
         return;
       }
 
-      const visibleIds = state.filteredSamples.map(s => s.id);
-      const selectedCount = visibleIds.filter(id => state.selected.has(id)).length;
+      const visibleIds = state.filteredSamples.map(function(s) { return s.id; });
+      const selectedCount = visibleIds.filter(function(id) { return state.selected.has(id); }).length;
 
       els.masterCheckbox.checked = selectedCount > 0 && selectedCount === visibleIds.length;
       els.masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < visibleIds.length;
@@ -759,7 +785,9 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(function() {
+        URL.revokeObjectURL(url);
+      }, 1000);
     }
 
     function makeSafeFilename(name) {
@@ -776,42 +804,29 @@
 
       log("Requesting USB device access...");
 
-      /*
-        Replace the filters below with the real vendor/product IDs for the target hardware.
-        If you have reverse engineered the device, add the correct USB filters here.
-      */
       const requestedDevice = await navigator.usb.requestDevice({
-        filters: [
-          // Example placeholders:
-          // { vendorId: 0x0000, productId: 0x0000 }
-        ]
+        filters: []
       });
 
       await requestedDevice.open();
 
-      /*
-        Real devices may need selectConfiguration / claimInterface / controlTransferIn/Out.
-        Add the concrete handshake here once you have the protocol details.
-      */
-
       state.device = requestedDevice;
       state.connected = true;
-
       state.deviceInfo = await K2Protocol.getDeviceInfo(requestedDevice);
 
-      setConnectionBadge("ok", `Connected: ${state.deviceInfo.model || requestedDevice.productName || "Device"}`);
-      log(`Connected to ${state.deviceInfo.model || requestedDevice.productName || "device"}.`);
+      setConnectionBadge("ok", "Connected: " + (state.deviceInfo.model || requestedDevice.productName || "Device"));
+      log("Connected to " + (state.deviceInfo.model || requestedDevice.productName || "device") + ".");
       updateMeta();
       setBusy(false);
     }
 
     async function disconnectDevice() {
       try {
-        if (state.device?.opened) {
+        if (state.device && state.device.opened) {
           await state.device.close();
         }
       } catch (error) {
-        log(`Warning while disconnecting: ${error.message}`);
+        log("Warning while disconnecting: " + error.message);
       }
 
       state.device = null;
@@ -840,7 +855,7 @@
       setProgress(10, "Reading sample index...");
       log("Reading sample index from device...");
 
-      const samples = await K2Protocol.listSamples(state.device, progress => {
+      const samples = await K2Protocol.listSamples(state.device, function(progress) {
         setProgress(progress, "Reading sample index...");
       });
 
@@ -851,61 +866,67 @@
       updateMeta();
       applyFilters();
 
-      setProgress(100, `Loaded ${samples.length} sample${samples.length === 1 ? "" : "s"}.`);
-      log(`Indexed ${samples.length} samples.`);
+      setProgress(100, "Loaded " + samples.length + " sample" + (samples.length === 1 ? "" : "s") + ".");
+      log("Indexed " + samples.length + " samples.");
       setBusy(false);
     }
 
     async function downloadOneSample(sample) {
-      log(`Downloading sample: ${sample.name} (${sample.id})`);
+      log("Downloading sample: " + sample.name + " (" + sample.id + ")");
       const blob = await K2Protocol.readSampleBlob(state.device, sample);
       const ext = sample.extension || "wav";
-      const filename = `${makeSafeFilename(sample.pad || "pad")}_${makeSafeFilename(sample.name || sample.id)}.${ext}`;
+      const filename = makeSafeFilename(sample.pad || "pad") + "_" + makeSafeFilename(sample.name || sample.id) + "." + ext;
       downloadBlob(blob, filename);
-      log(`Saved ${filename}`);
+      log("Saved " + filename);
     }
 
     async function downloadSelected() {
-      const selectedSamples = state.samples.filter(s => state.selected.has(s.id));
+      const selectedSamples = state.samples.filter(function(s) {
+        return state.selected.has(s.id);
+      });
+
       if (!selectedSamples.length) return;
 
       setBusy(true);
-      log(`Downloading ${selectedSamples.length} selected sample(s)...`);
+      log("Downloading " + selectedSamples.length + " selected sample(s)...");
 
       let done = 0;
       for (const sample of selectedSamples) {
-        setProgress((done / selectedSamples.length) * 100, `Downloading ${done}/${selectedSamples.length}...`);
+        setProgress((done / selectedSamples.length) * 100, "Downloading " + done + "/" + selectedSamples.length + "...");
         await downloadOneSample(sample);
         done += 1;
       }
 
-      setProgress(100, `Downloaded ${done} sample(s).`);
+      setProgress(100, "Downloaded " + done + " sample(s).");
       setBusy(false);
     }
 
     async function downloadAllAsZip() {
       if (!state.samples.length) return;
 
-      setBusy(true);
-      log(`Preparing ZIP archive for ${state.samples.length} samples...`);
+      if (typeof window.JSZip === "undefined") {
+        throw new Error("JSZip is not loaded. Add the JSZip script before using ZIP export.");
+      }
 
-      const zip = new JSZip();
+      setBusy(true);
+      log("Preparing ZIP archive for " + state.samples.length + " samples...");
+
+      const zip = new window.JSZip();
       const manifest = [];
 
       for (let i = 0; i < state.samples.length; i += 1) {
         const sample = state.samples[i];
         const percent = Math.round((i / state.samples.length) * 100);
-        setProgress(percent, `Downloading ${i + 1}/${state.samples.length}: ${sample.name}`);
+        setProgress(percent, "Downloading " + (i + 1) + "/" + state.samples.length + ": " + sample.name);
 
         const blob = await K2Protocol.readSampleBlob(state.device, sample);
         const ext = sample.extension || "wav";
-        const filename = `${makeSafeFilename(sample.pad || "pad")}_${makeSafeFilename(sample.name || sample.id)}.${ext}`;
+        const filename = makeSafeFilename(sample.pad || "pad") + "_" + makeSafeFilename(sample.name || sample.id) + "." + ext;
 
         zip.file(filename, blob);
-        manifest.push({
-          ...sample,
+        manifest.push(Object.assign({}, sample, {
           archiveFilename: filename
-        });
+        }));
       }
 
       zip.file("manifest.json", JSON.stringify({
@@ -916,16 +937,13 @@
       }, null, 2));
 
       setProgress(96, "Building ZIP...");
-      const zipBlob = await zip.generateAsync(
-        { type: "blob" },
-        metadata => {
-          const pct = 96 + (metadata.percent / 100) * 4;
-          setProgress(pct, `Building ZIP... ${Math.round(metadata.percent)}%`);
-        }
-      );
+      const zipBlob = await zip.generateAsync({ type: "blob" }, function(metadata) {
+        const pct = 96 + (metadata.percent / 100) * 4;
+        setProgress(pct, "Building ZIP... " + Math.round(metadata.percent) + "%");
+      });
 
-      const timestamp = new Date().toISOString().replaceAll(":", "-");
-      downloadBlob(zipBlob, `k2-samples-${timestamp}.zip`);
+      const timestamp = new Date().toISOString().replace(/:/g, "-");
+      downloadBlob(zipBlob, "k2-samples-" + timestamp + ".zip");
 
       setProgress(100, "ZIP download ready.");
       log("ZIP archive created.");
@@ -944,52 +962,21 @@
         type: "application/json"
       });
 
-      const timestamp = new Date().toISOString().replaceAll(":", "-");
-      downloadBlob(blob, `k2-sample-index-${timestamp}.json`);
+      const timestamp = new Date().toISOString().replace(/:/g, "-");
+      downloadBlob(blob, "k2-sample-index-" + timestamp + ".json");
       log("Exported manifest JSON.");
     }
 
     const K2Protocol = {
       async getDeviceInfo(device) {
-        /*
-          TODO: Replace this stub with real transport logic.
-
-          Suggested return shape:
-          {
-            model: "EP–133 K.O. II",
-            firmware: "2.0.5"
-          }
-        */
-
         return {
           model: device.productName || "K2 / KO Device",
           firmware: "Unknown"
         };
       },
 
-      async listSamples(device, onProgress = () => {}) {
-        /*
-          TODO: Replace this stub with actual hardware enumeration.
-
-          Each sample object should look like:
-          {
-            id: "sample-0001",
-            name: "Kick 01",
-            bank: "A",
-            pad: "A1",
-            durationMs: 382,
-            sampleRate: 46875,
-            channels: 1,
-            sizeBytes: 35812,
-            extension: "wav",
-            tags: ["drum", "kick"]
-          }
-
-          If you already know the device protocol, this is where you:
-          - send the index/list command
-          - parse the device response
-          - map slots/pads to metadata
-        */
+      async listSamples(device, onProgress) {
+        onProgress = onProgress || function() {};
 
         onProgress(20);
         await delay(120);
@@ -999,7 +986,6 @@
         await delay(120);
         onProgress(100);
 
-        // Demo data so the interface works immediately.
         return [
           {
             id: "smp-0001",
@@ -1065,18 +1051,10 @@
       },
 
       async readSampleBlob(device, sample) {
-        /*
-          TODO: Replace this stub with the actual command that pulls raw sample bytes
-          from the hardware for the given sample slot/id.
-
-          Return a Blob, usually WAV if that is the format your dump routine produces.
-        */
-
         await delay(140);
 
-        // Generates a tiny placeholder WAV-like payload so the UI flow works.
         const content = new TextEncoder().encode(
-          `Placeholder audio payload for ${sample.name} (${sample.id}). Replace K2Protocol.readSampleBlob() with real device read logic.`
+          "Placeholder audio payload for " + sample.name + " (" + sample.id + "). Replace K2Protocol.readSampleBlob() with real device read logic."
         );
 
         return new Blob([content], { type: "application/octet-stream" });
@@ -1084,59 +1062,61 @@
     };
 
     function delay(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
+      return new Promise(function(resolve) {
+        setTimeout(resolve, ms);
+      });
     }
 
-    els.connectBtn.addEventListener("click", async () => {
+    els.connectBtn.addEventListener("click", async function() {
       try {
         setBusy(true);
         await connectDevice();
       } catch (error) {
         setConnectionBadge("err", "Connection failed");
-        log(`Connection failed: ${error.message}`);
+        log("Connection failed: " + error.message);
         setBusy(false);
       }
     });
 
-    els.disconnectBtn.addEventListener("click", async () => {
+    els.disconnectBtn.addEventListener("click", async function() {
       await disconnectDevice();
     });
 
-    els.scanBtn.addEventListener("click", async () => {
+    els.scanBtn.addEventListener("click", async function() {
       try {
         await readSampleIndex();
       } catch (error) {
-        log(`Index read failed: ${error.message}`);
+        log("Index read failed: " + error.message);
         setProgress(0, "Idle");
         setBusy(false);
       }
     });
 
-    els.downloadSelectedBtn.addEventListener("click", async () => {
+    els.downloadSelectedBtn.addEventListener("click", async function() {
       try {
         await downloadSelected();
       } catch (error) {
-        log(`Selected download failed: ${error.message}`);
+        log("Selected download failed: " + error.message);
         setProgress(0, "Idle");
         setBusy(false);
       }
     });
 
-    els.downloadAllBtn.addEventListener("click", async () => {
+    els.downloadAllBtn.addEventListener("click", async function() {
       try {
         await downloadAllAsZip();
       } catch (error) {
-        log(`ZIP export failed: ${error.message}`);
+        log("ZIP export failed: " + error.message);
         setProgress(0, "Idle");
         setBusy(false);
       }
     });
 
-    els.exportManifestBtn.addEventListener("click", () => {
+    els.exportManifestBtn.addEventListener("click", function() {
       try {
         exportManifest();
       } catch (error) {
-        log(`Manifest export failed: ${error.message}`);
+        log("Manifest export failed: " + error.message);
       }
     });
 
@@ -1144,36 +1124,36 @@
     els.bankFilter.addEventListener("change", applyFilters);
     els.sortSelect.addEventListener("change", applyFilters);
 
-    els.selectAllBtn.addEventListener("click", () => {
-      for (const sample of state.filteredSamples) {
+    els.selectAllBtn.addEventListener("click", function() {
+      state.filteredSamples.forEach(function(sample) {
         state.selected.add(sample.id);
-      }
+      });
       applyFilters();
       updateSelectionButtons();
     });
 
-    els.clearSelectionBtn.addEventListener("click", () => {
+    els.clearSelectionBtn.addEventListener("click", function() {
       state.selected.clear();
       applyFilters();
       updateSelectionButtons();
     });
 
-    els.masterCheckbox.addEventListener("change", () => {
-      const ids = state.filteredSamples.map(s => s.id);
+    els.masterCheckbox.addEventListener("change", function() {
+      const ids = state.filteredSamples.map(function(s) { return s.id; });
       if (els.masterCheckbox.checked) {
-        ids.forEach(id => state.selected.add(id));
+        ids.forEach(function(id) { state.selected.add(id); });
       } else {
-        ids.forEach(id => state.selected.delete(id));
+        ids.forEach(function(id) { state.selected.delete(id); });
       }
       applyFilters();
       updateSelectionButtons();
     });
 
-    els.samplesTbody.addEventListener("change", event => {
+    els.samplesTbody.addEventListener("change", function(event) {
       const checkbox = event.target.closest(".row-check");
       if (!checkbox) return;
 
-      const { id } = checkbox.dataset;
+      const id = checkbox.getAttribute("data-id");
       if (checkbox.checked) {
         state.selected.add(id);
       } else {
@@ -1181,39 +1161,42 @@
       }
 
       const row = checkbox.closest("tr");
-      row?.classList.toggle("is-selected", checkbox.checked);
+      if (row) row.classList.toggle("is-selected", checkbox.checked);
 
       syncMasterCheckbox();
       updateSelectionButtons();
     });
 
-    els.samplesTbody.addEventListener("click", async event => {
+    els.samplesTbody.addEventListener("click", async function(event) {
       const button = event.target.closest(".single-download");
       if (!button) return;
 
-      const { id } = button.dataset;
-      const sample = state.samples.find(s => s.id === id);
+      const id = button.getAttribute("data-id");
+      const sample = state.samples.find(function(s) { return s.id === id; });
       if (!sample) return;
 
       try {
         setBusy(true);
-        setProgress(20, `Downloading ${sample.name}...`);
+        setProgress(20, "Downloading " + sample.name + "...");
         await downloadOneSample(sample);
-        setProgress(100, `Downloaded ${sample.name}.`);
+        setProgress(100, "Downloaded " + sample.name + ".");
       } catch (error) {
-        log(`Single download failed: ${error.message}`);
+        log("Single download failed: " + error.message);
         setProgress(0, "Idle");
       } finally {
         setBusy(false);
       }
     });
 
-    window.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("DOMContentLoaded", function() {
       setConnectionBadge("warn", "Not connected");
       renderTable();
       updateMeta();
       setBusy(false);
+      log("UI loaded.");
     });
   </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </body>
 </html>
