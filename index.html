@@ -161,16 +161,20 @@
           <div class="section-header">
             <h2>Sample Pool</h2>
             <div class="row">
+              <span id="libraryStats" class="mini-stat">0 / 999 slots</span>
               <input id="searchInput" type="search" placeholder="Filter samples">
               <button id="selectAllBtn" type="button" disabled title="Select all visible samples.">Select all</button>
               <button id="clearSelectionBtn" type="button" disabled title="Clear sample selection.">Clear</button>
             </div>
           </div>
+          <div id="bankTabs" class="bank-tabs" aria-label="Sample bank tabs"></div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th><input id="masterCheckbox" type="checkbox"></th>
+                  <th>Slot</th>
+                  <th>Pad</th>
                   <th>Name</th>
                   <th>Kind</th>
                   <th>Duration</th>
@@ -182,7 +186,7 @@
                 </tr>
               </thead>
               <tbody id="libraryRows">
-                <tr><td colspan="9" class="muted">Load local audio or a JSON manifest to build a library.</td></tr>
+                <tr><td colspan="11" class="muted">Load local audio or a JSON manifest to build a library.</td></tr>
               </tbody>
             </table>
           </div>
@@ -191,7 +195,20 @@
         <section class="panel section arrangement-panel">
           <div class="section-header">
             <h2>Arrangement</h2>
+            <div class="row">
+              <span id="projectSummary" class="mini-stat">0 scenes / 0 tracks / 0 pads</span>
+              <label class="inline-label">
+                Group
+                <select id="activeGroupSelect">
+                  <option>A</option>
+                  <option>B</option>
+                  <option>C</option>
+                  <option>D</option>
+                </select>
+              </label>
+            </div>
           </div>
+          <div id="padGrid" class="pad-grid" aria-label="KO II pad assignment grid"></div>
           <div class="project-grid">
             <div>
               <h3>Scenes</h3>

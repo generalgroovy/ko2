@@ -23,9 +23,11 @@ Make the first screen feel like a compact DAW hardware editor, not a lab noteboo
 
 ## Function Proposals To Surface
 
+- Official EP Sample Tool parity targets: 999 library slots across ten tabs, groups A-D, 12 pads, assignment dots, sample slot/name/length/current-project context, drag/drop, rename, trim in/out, upload/download/delete, and project backup/restore.
 - Recursive read-only device browser with configurable scan depth.
 - Device tree export for protocol debugging.
 - Protocol log export for reproducing hardware sessions.
+- Ten-bank local sample browser and pad grid fed by imported metadata.
 - Local sample versus cached device tree comparison by normalized filename and byte size.
 - Project view for scenes, tracks, clips, pads, and sample references from imported metadata.
 - Future verified sample backup using read-only file GET after device paths are confirmed.

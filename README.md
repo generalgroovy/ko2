@@ -13,6 +13,7 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Exposes runtime settings for SysEx requests, read probe privilege, write-action visibility, port selection, MIDI listening, logging, poll timing, device ID, and request timeouts.
 - Implements proposal surfaces for recursive device-tree scanning, cached tree export, protocol log export, local-vs-device sample comparison, and pad assignment rendering from imported metadata.
 - Uses a DAW workspace layout with a left inspector, transport/device strip, central sample and arrangement panels, hardware file browser, function queue, and session log.
+- Mirrors official EP Sample Tool reference targets with ten sample banks, 999-slot awareness, assignment dots, and a group A-D / 12-pad grid fed by imported metadata.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.

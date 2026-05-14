@@ -61,6 +61,8 @@ const state = {
   scenes: [],
   pads: [],
   comparison: [],
+  activeBank: 1,
+  activeGroup: "A",
   deviceNodesByPath: new Map(),
   deviceTree: [],
   selected: new Set(),
@@ -112,6 +114,8 @@ const els = {
   compareDeviceBtn: $("compareDeviceBtn"),
   downloadAllBtn: $("downloadAllBtn"),
   downloadSelectedBtn: $("downloadSelectedBtn"),
+  libraryStats: $("libraryStats"),
+  bankTabs: $("bankTabs"),
   searchInput: $("searchInput"),
   selectAllBtn: $("selectAllBtn"),
   clearSelectionBtn: $("clearSelectionBtn"),
@@ -125,6 +129,9 @@ const els = {
   sceneList: $("sceneList"),
   trackList: $("trackList"),
   padList: $("padList"),
+  padGrid: $("padGrid"),
+  activeGroupSelect: $("activeGroupSelect"),
+  projectSummary: $("projectSummary"),
   deviceTree: $("deviceTree"),
   proposalList: $("proposalList"),
   log: $("log"),
@@ -209,6 +216,11 @@ function updateButtons() {
   const selectedVisible = visible.filter((id) => state.selected.has(id)).length;
   els.masterCheckbox.checked = visible.length > 0 && selectedVisible === visible.length;
   els.masterCheckbox.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+}
+
+function sampleBank(sample) {
+  const slot = Number(sample.slot || 1);
+  return Math.max(1, Math.min(10, Math.floor((slot - 1) / 100) + 1));
 }
 
 function privilegeSummary() {
@@ -567,6 +579,7 @@ async function handleFiles(files) {
       await importManifest(file);
     } else if (file.type.startsWith("audio/")) {
       const sample = await decodeAudioFile(file, state);
+      sample.slot = nextAvailableSlot();
       state.samples.push(sample);
       log(`Imported audio: ${file.name}`);
     }
@@ -629,6 +642,14 @@ async function importManifest(file) {
   log(`Imported manifest: ${file.name}`);
 }
 
+function nextAvailableSlot() {
+  const used = new Set(state.samples.map((sample) => Number(sample.slot || 0)));
+  for (let slot = 1; slot <= 999; slot += 1) {
+    if (!used.has(slot)) return slot;
+  }
+  return state.samples.length + 1;
+}
+
 function normalizePads(json) {
   const sourcePads = json.pads || json.padAssignments || json.assignments || [];
   const songPads = (json.songs || []).flatMap((song, songIndex) => (song.pads || song.padAssignments || []).map((pad, padIndex) => ({
@@ -638,10 +659,11 @@ function normalizePads(json) {
   })));
   return [...sourcePads, ...songPads].map((pad, index) => {
     const soundId = pad.soundId || pad.sampleId || pad.sample || pad.sound || "";
+    const parsedPad = parsePadLabel(pad.pad || pad.index || pad.number || "");
     return {
       id: pad.id || `pad-${index}`,
-      group: pad.group || pad.bank || pad.track || "",
-      pad: pad.pad || pad.index || pad.number || index + 1,
+      group: String(pad.group || pad.bank || pad.track || parsedPad.group || "").toUpperCase(),
+      pad: parsedPad.pad || pad.pad || pad.index || pad.number || index + 1,
       soundId,
       soundName: pad.soundName || sampleName(soundId),
       mode: pad.mode || pad.playMode || pad.type || "",
@@ -650,9 +672,16 @@ function normalizePads(json) {
   });
 }
 
+function parsePadLabel(value) {
+  const match = String(value || "").trim().match(/^([A-D])\s*[-:]?\s*(1[0-2]|[1-9])$/i);
+  if (!match) return { group: "", pad: "" };
+  return { group: match[1].toUpperCase(), pad: Number(match[2]) };
+}
+
 function normalizeManifestSample(sample, index) {
   return {
     id: sample.id || `manifest-${index}`,
+    slot: clampNumber(sample.slot || sample.slotNumber || sample.index || index + 1, 1, 999, index + 1),
     source: sample.source || "manifest",
     name: sample.name || `Sample ${index + 1}`,
     fileName: sample.fileName || sample.path || "",
@@ -675,22 +704,31 @@ function sampleName(soundId) {
 
 function filteredSamples() {
   const query = els.searchInput.value.trim().toLowerCase();
-  if (!query) return state.samples;
-  return state.samples.filter((sample) => [sample.name, sample.fileName, sample.type, sample.source].join(" ").toLowerCase().includes(query));
+  return state.samples.filter((sample) => {
+    const bankMatch = sampleBank(sample) === state.activeBank;
+    if (!bankMatch) return false;
+    if (!query) return true;
+    return [sample.slot, sample.name, sample.fileName, sample.type, sample.source].join(" ").toLowerCase().includes(query);
+  });
 }
 
 function renderLibrary() {
+  renderBankTabs();
+  renderLibraryStats();
   const rows = filteredSamples();
   if (!rows.length) {
-    els.libraryRows.innerHTML = '<tr><td colspan="9" class="muted">No matching samples.</td></tr>';
+    els.libraryRows.innerHTML = '<tr><td colspan="11" class="muted">No matching samples in this bank.</td></tr>';
     updateButtons();
     return;
   }
 
   els.libraryRows.innerHTML = rows.map((sample) => {
     const checked = state.selected.has(sample.id) ? " checked" : "";
+    const assignments = assignedPadsForSample(sample.id);
     return `<tr>
       <td><input class="rowCheck" type="checkbox" data-id="${escapeHtml(sample.id)}"${checked}></td>
+      <td><span class="slot-pill">${sample.slot || "-"}</span></td>
+      <td>${assignmentHtml(assignments)}</td>
       <td><strong>${escapeHtml(sample.name)}</strong><div class="muted mono">${escapeHtml(sample.source)}</div></td>
       <td>${escapeHtml(sample.channels ? `${sample.channels}ch ${sample.type}` : sample.type)}</td>
       <td>${seconds(sample.duration)}</td>
@@ -704,10 +742,37 @@ function renderLibrary() {
   updateButtons();
 }
 
+function renderBankTabs() {
+  els.bankTabs.innerHTML = Array.from({ length: 10 }, (_, index) => {
+    const bank = index + 1;
+    const count = state.samples.filter((sample) => sampleBank(sample) === bank).length;
+    const active = state.activeBank === bank ? " active" : "";
+    return `<button class="bank-tab${active}" type="button" data-bank="${bank}" title="Show sample slots ${(bank - 1) * 100 + 1}-${bank === 10 ? 999 : bank * 100}.">Bank ${bank}<span>${count}</span></button>`;
+  }).join("");
+}
+
+function renderLibraryStats() {
+  const used = state.samples.length;
+  const bytes = state.samples.reduce((total, sample) => total + Number(sample.sizeBytes || 0), 0);
+  els.libraryStats.textContent = `${used} / 999 slots · ${bytesToHuman(bytes)}`;
+}
+
+function assignedPadsForSample(sampleId) {
+  return state.pads.filter((pad) => String(pad.soundId) === String(sampleId));
+}
+
+function assignmentHtml(assignments) {
+  if (!assignments.length) return '<span class="assign-dot" title="Not assigned"></span>';
+  const label = assignments.map((pad) => `${pad.group || "-"}${pad.pad}`).join(", ");
+  return `<span class="assign-dot active" title="${escapeHtml(label)}"></span><span class="muted">${escapeHtml(label)}</span>`;
+}
+
 function renderProject() {
+  els.projectSummary.textContent = `${state.scenes.length} scenes / ${state.tracks.length} tracks / ${state.pads.length} pads`;
   els.sceneList.classList.toggle("muted", !state.scenes.length);
   els.trackList.classList.toggle("muted", !state.tracks.length);
   els.padList.classList.toggle("muted", !state.pads.length);
+  renderPadGrid();
   els.sceneList.innerHTML = state.scenes.length ? state.scenes.map((scene) => `<div class="item">
     <strong>${escapeHtml(scene.name)}</strong>
     <div class="sub">${escapeHtml(scene.song)} · ${scene.bars || 0} bars · groups ${escapeHtml((scene.groups || []).join(", ") || "-")} · patterns ${escapeHtml((scene.patterns || []).join(", ") || "-")}</div>
@@ -721,6 +786,20 @@ function renderProject() {
     <strong>${escapeHtml(pad.group ? `${pad.group} ${pad.pad}` : `Pad ${pad.pad}`)}</strong>
     <div class="sub">${escapeHtml(pad.song)} Â· ${escapeHtml(pad.soundName || pad.soundId || "-")} Â· ${escapeHtml(pad.mode || "-")}</div>
   </div>`).join("") : "No pads loaded.";
+}
+
+function renderPadGrid() {
+  const groupPads = state.pads.filter((pad) => String(pad.group || "").toUpperCase() === state.activeGroup);
+  els.padGrid.innerHTML = Array.from({ length: 12 }, (_, index) => {
+    const padNumber = index + 1;
+    const pad = groupPads.find((item) => Number(item.pad) === padNumber || String(item.pad).toUpperCase() === String(padNumber));
+    const assigned = pad ? " assigned" : "";
+    const label = pad ? pad.soundName || pad.soundId || "Assigned" : "Empty";
+    return `<button class="pad-cell${assigned}" type="button" data-pad="${padNumber}" data-sound-id="${escapeHtml(pad ? pad.soundId : "")}" title="${escapeHtml(label)}">
+      <span>${state.activeGroup}${padNumber}</span>
+      <strong>${escapeHtml(label)}</strong>
+    </button>`;
+  }).join("");
 }
 
 function renderDeviceTree() {
@@ -737,10 +816,11 @@ function renderProposals() {
   const hasPads = state.pads.length > 0;
   const hasComparison = state.comparison.length > 0;
   const proposals = [
+    ["Official parity", "Reference target: 999 sample slots, ten banks, groups A-D, 12 pads, assignment dots, drag/drop upload, rename, trim, download, delete, and project backup/restore."],
     ["Read-only browser", "Implemented recursive folder scan with configurable depth and cached tree export."],
     ["Sample backup", hasTree ? "Device tree cache is ready for verified sample backup once file GET is implemented." : "List or scan the device tree before attempting backup mapping."],
     ["Pad assignment", hasPads ? "Imported pad assignments are rendered by group, pad, and sample." : "Pad assignment view is ready for manifests that include pads or padAssignments."],
-    ["Project view", "Scenes, tracks, clips, pads, and local audio contents render from imported metadata."],
+    ["Project view", "Scenes, tracks, clips, pads, ten sample banks, and local audio contents render from imported metadata."],
     ["Safe write mode", "Write privileges can be surfaced at runtime, but protocol writes remain blocked until verified."],
     ["Compare mode", hasComparison ? "Local samples have been compared against cached device filenames and sizes." : "Use Compare device after loading local samples and scanning the device tree."],
     ["Session capture", "Implemented protocol log export for validation and sharing."]
@@ -962,6 +1042,31 @@ els.devicePlaybackBtn.addEventListener("click", () => lockedAction("Device playb
 els.backupRestoreBtn.addEventListener("click", () => lockedAction("Backup / restore"));
 els.fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 els.searchInput.addEventListener("input", renderLibrary);
+els.bankTabs.addEventListener("click", (event) => {
+  const button = event.target.closest(".bank-tab");
+  if (!button) return;
+  state.activeBank = Number(button.dataset.bank);
+  renderLibrary();
+});
+els.activeGroupSelect.addEventListener("change", () => {
+  state.activeGroup = els.activeGroupSelect.value;
+  renderProject();
+});
+els.padGrid.addEventListener("click", (event) => {
+  const button = event.target.closest(".pad-cell");
+  if (!button || !button.dataset.soundId) return;
+  const sample = state.samples.find((item) => String(item.id) === String(button.dataset.soundId));
+  if (!sample) {
+    log(`Pad ${state.activeGroup}${button.dataset.pad}: assigned sample ${button.dataset.soundId} is not in the local manifest.`);
+    return;
+  }
+  state.activeBank = sampleBank(sample);
+  state.selected.clear();
+  state.selected.add(sample.id);
+  els.searchInput.value = "";
+  renderLibrary();
+  log(`Pad ${state.activeGroup}${button.dataset.pad}: selected sample ${sample.name}.`);
+});
 els.clearLogBtn.addEventListener("click", () => els.log.textContent = "Log cleared.");
 els.exportLogBtn.addEventListener("click", exportProtocolLog);
 els.clearTreeBtn.addEventListener("click", () => {
@@ -1014,6 +1119,7 @@ els.dropZone.addEventListener("drop", (event) => {
 
 syncSettingsForm();
 updateMeta();
+renderLibrary();
 renderProject();
 renderDeviceTree();
 renderProposals();
