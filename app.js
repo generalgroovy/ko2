@@ -1,3 +1,4 @@
+(() => {
 const {
   TE_FILE,
   TE_SYSEX,
@@ -27,6 +28,7 @@ const {
 
 const state = {
   midi: null,
+  sysex: false,
   input: null,
   output: null,
   inputs: [],
@@ -86,7 +88,8 @@ const els = {
   metaDeviceId: $("metaDeviceId"),
   metaSku: $("metaSku"),
   metaSerial: $("metaSerial"),
-  metaChunk: $("metaChunk")
+  metaChunk: $("metaChunk"),
+  metaSysex: $("metaSysex")
 };
 
 state.te = new TeSysexClient({ log });
@@ -119,20 +122,22 @@ function updateMeta() {
   els.metaSku.textContent = state.device.sku || "-";
   els.metaSerial.textContent = state.device.serial || "-";
   els.metaChunk.textContent = state.device.fileChunkSize ? bytesToHuman(state.device.fileChunkSize) : "-";
+  els.metaSysex.textContent = state.sysex ? "granted" : "not granted";
   els.midiPortLabel.textContent = state.input && state.output ? "MIDI pair selected" : "No MIDI pair";
 }
 
 function updateButtons() {
   const hasPair = !!state.input && !!state.output;
-  els.identityBtn.disabled = !state.output;
-  els.teEchoBtn.disabled = !hasPair;
-  els.fileInitBtn.disabled = !hasPair;
-  els.rootInfoBtn.disabled = !hasPair || !state.device.fileChunkSize;
-  els.listRootBtn.disabled = !hasPair || !state.device.fileChunkSize;
-  els.listSoundsBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/sounds");
-  els.listProjectsBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/projects");
-  els.readSoundsMetaBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/sounds");
-  els.readProjectsMetaBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/projects");
+  const hasSysexPair = hasPair && state.sysex;
+  els.identityBtn.disabled = !state.output || !state.sysex;
+  els.teEchoBtn.disabled = !hasSysexPair;
+  els.fileInitBtn.disabled = !hasSysexPair;
+  els.rootInfoBtn.disabled = !hasSysexPair || !state.device.fileChunkSize;
+  els.listRootBtn.disabled = !hasSysexPair || !state.device.fileChunkSize;
+  els.listSoundsBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/sounds");
+  els.listProjectsBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/projects");
+  els.readSoundsMetaBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/sounds");
+  els.readProjectsMetaBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/projects");
   els.exportManifestBtn.disabled = !state.samples.length;
   els.downloadAllBtn.disabled = !state.samples.some((sample) => sample.buffer);
   els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
@@ -157,13 +162,26 @@ async function connectMidi() {
 
   try {
     state.midi = await navigator.requestMIDIAccess({ sysex: true });
+    state.sysex = true;
     state.midi.onstatechange = refreshMidiPorts;
     refreshMidiPorts();
     setBadge("ok", "MIDI connected");
-    log(`MIDI access granted. 7-bit packing self-test: ${selfTestPacking() ? "passed" : "failed"}`);
+    log(`MIDI + SysEx access granted. 7-bit packing self-test: ${selfTestPacking() ? "passed" : "failed"}`);
   } catch (error) {
-    setBadge("err", "MIDI blocked");
-    log(`MIDI access failed: ${error.message}`);
+    log(`MIDI + SysEx access failed: ${error.message}`);
+    try {
+      state.midi = await navigator.requestMIDIAccess();
+      state.sysex = false;
+      state.midi.onstatechange = refreshMidiPorts;
+      refreshMidiPorts();
+      setBadge("ok", "MIDI connected");
+      log("Plain MIDI access granted. SysEx probes are disabled until browser permission allows SysEx.");
+    } catch (fallbackError) {
+      state.sysex = false;
+      setBadge("err", "MIDI permission blocked");
+      log(`MIDI access failed: ${fallbackError.message}`);
+      log("Browser did not grant MIDI. Open this app in Chrome/Edge on localhost and allow MIDI + SysEx to probe the connected EP-133.");
+    }
   }
 }
 
@@ -640,3 +658,4 @@ renderProject();
 renderDeviceTree();
 renderProposals();
 updateButtons();
+})();

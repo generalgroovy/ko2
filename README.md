@@ -51,6 +51,7 @@ Do not enable write commands without a device you can safely test against and a 
 - A real USB-C data cable, not a charge-only cable.
 - Browser permission for MIDI and SysEx.
 - The KO II / EP MIDI ports must not be exclusively held by another app.
+- Some embedded browsers deny Web MIDI entirely. Use Chrome or Edge on `localhost` for hardware probes.
 
 ## What Is Known From The Official EP Sample Tool
 
