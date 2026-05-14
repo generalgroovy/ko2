@@ -27,7 +27,9 @@
       <aside class="panel stack">
         <section class="section stack">
           <h2>Connection</h2>
-          <button id="connectBtn" class="primary" type="button" title="Request Web MIDI access with SysEx permission.">Connect MIDI</button>
+          <button id="connectBtn" class="primary" type="button" title="Register MIDI ports first, then request SysEx access.">Connect MIDI</button>
+          <button id="refreshPortsBtn" type="button" disabled title="Refresh browser MIDI inputs and outputs.">Refresh ports</button>
+          <button id="diagnoseMidiBtn" type="button" title="Log browser MIDI support, origin state, and visible ports.">Diagnose MIDI</button>
           <label>
             MIDI input
             <select id="midiInSelect" disabled><option>No MIDI input</option></select>
@@ -81,6 +83,7 @@
           <div class="meta-grid">
             <div><span>Input</span><strong id="metaInput">-</strong></div>
             <div><span>Output</span><strong id="metaOutput">-</strong></div>
+            <div><span>Ports</span><strong id="metaPorts">0 in / 0 out</strong></div>
             <div><span>Device ID</span><strong id="metaDeviceId">-</strong></div>
             <div><span>SKU</span><strong id="metaSku">-</strong></div>
             <div><span>Serial</span><strong id="metaSerial">-</strong></div>

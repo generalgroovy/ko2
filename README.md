@@ -6,8 +6,10 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 
 ## Current Features
 
-- Connects to MIDI devices through `navigator.requestMIDIAccess({ sysex: true })`.
+- Connects to MIDI devices through Web MIDI plain registration first.
+- Registers plain MIDI first, then requests SysEx as an upgrade so EP-133 ports still appear if SysEx is denied.
 - Tracks MIDI inputs and outputs separately.
+- Includes manual port refresh and browser MIDI diagnostics.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.

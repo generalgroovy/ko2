@@ -55,6 +55,8 @@ const els = {
   connectionBadge: $("connectionBadge"),
   midiPortLabel: $("midiPortLabel"),
   connectBtn: $("connectBtn"),
+  refreshPortsBtn: $("refreshPortsBtn"),
+  diagnoseMidiBtn: $("diagnoseMidiBtn"),
   midiInSelect: $("midiInSelect"),
   midiOutSelect: $("midiOutSelect"),
   identityBtn: $("identityBtn"),
@@ -85,6 +87,7 @@ const els = {
   log: $("log"),
   metaInput: $("metaInput"),
   metaOutput: $("metaOutput"),
+  metaPorts: $("metaPorts"),
   metaDeviceId: $("metaDeviceId"),
   metaSku: $("metaSku"),
   metaSerial: $("metaSerial"),
@@ -118,6 +121,7 @@ function escapeHtml(value) {
 function updateMeta() {
   els.metaInput.textContent = state.input ? state.input.name || state.input.id : "-";
   els.metaOutput.textContent = state.output ? state.output.name || state.output.id : "-";
+  els.metaPorts.textContent = `${state.inputs.length} in / ${state.outputs.length} out`;
   els.metaDeviceId.textContent = state.device.id ?? "-";
   els.metaSku.textContent = state.device.sku || "-";
   els.metaSerial.textContent = state.device.serial || "-";
@@ -129,6 +133,7 @@ function updateMeta() {
 function updateButtons() {
   const hasPair = !!state.input && !!state.output;
   const hasSysexPair = hasPair && state.sysex;
+  els.refreshPortsBtn.disabled = !state.midi;
   els.identityBtn.disabled = !state.output || !state.sysex;
   els.teEchoBtn.disabled = !hasSysexPair;
   els.fileInitBtn.disabled = !hasSysexPair;
@@ -160,29 +165,32 @@ async function connectMidi() {
     return;
   }
 
+  if (state.midi) {
+    refreshMidiPorts();
+    logPortSummary("MIDI ports refreshed.");
+    if (!state.sysex) {
+      await requestSysexUpgrade();
+    }
+    return;
+  }
+
   try {
-    state.midi = await navigator.requestMIDIAccess({ sysex: true });
-    state.sysex = true;
+    state.midi = await navigator.requestMIDIAccess();
+    state.sysex = false;
     state.midi.onstatechange = refreshMidiPorts;
     refreshMidiPorts();
-    setBadge("ok", "MIDI connected");
-    log(`MIDI + SysEx access granted. 7-bit packing self-test: ${selfTestPacking() ? "passed" : "failed"}`);
+    setBadge(state.inputs.length || state.outputs.length ? "ok" : "err", state.inputs.length || state.outputs.length ? "MIDI registered" : "No MIDI ports");
+    logPortSummary(`Plain MIDI registered. 7-bit packing self-test: ${selfTestPacking() ? "passed" : "failed"}`);
+    await pollPortsBriefly();
   } catch (error) {
-    log(`MIDI + SysEx access failed: ${error.message}`);
-    try {
-      state.midi = await navigator.requestMIDIAccess();
-      state.sysex = false;
-      state.midi.onstatechange = refreshMidiPorts;
-      refreshMidiPorts();
-      setBadge("ok", "MIDI connected");
-      log("Plain MIDI access granted. SysEx probes are disabled until browser permission allows SysEx.");
-    } catch (fallbackError) {
-      state.sysex = false;
-      setBadge("err", "MIDI permission blocked");
-      log(`MIDI access failed: ${fallbackError.message}`);
-      log("Browser did not grant MIDI. Open this app in Chrome/Edge on localhost and allow MIDI + SysEx to probe the connected EP-133.");
-    }
+    state.sysex = false;
+    setBadge("err", "MIDI permission blocked");
+    log(`MIDI access failed: ${error.message}`);
+    log("Browser did not grant MIDI. Open this app in Chrome/Edge on localhost and allow MIDI access.");
+    return;
   }
+
+  await requestSysexUpgrade();
 }
 
 function refreshMidiPorts() {
@@ -202,6 +210,69 @@ function refreshMidiPorts() {
   configureClient();
   updateMeta();
   updateButtons();
+}
+
+async function requestSysexUpgrade() {
+  if (!navigator.requestMIDIAccess || state.sysex) return;
+  try {
+    const sysexAccess = await navigator.requestMIDIAccess({ sysex: true });
+    state.midi = sysexAccess;
+    state.sysex = true;
+    state.midi.onstatechange = refreshMidiPorts;
+    refreshMidiPorts();
+    setBadge("ok", "MIDI + SysEx");
+    logPortSummary("SysEx access granted.");
+  } catch (error) {
+    state.sysex = false;
+    updateMeta();
+    updateButtons();
+    log(`SysEx access not granted: ${error.message}`);
+    log("Device registration can still be verified. TE file probes need SysEx permission.");
+  }
+}
+
+async function pollPortsBriefly() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (state.inputs.length || state.outputs.length) return;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    refreshMidiPorts();
+  }
+}
+
+function logPortSummary(prefix = "MIDI ports") {
+  const inputs = state.inputs.map(portSummary);
+  const outputs = state.outputs.map(portSummary);
+  const matched = [...inputs, ...outputs].filter((line) => /ep-?133|teenage|engineering|k\.?o|ko/i.test(line));
+  log(prefix, {
+    sysex: state.sysex,
+    inputCount: state.inputs.length,
+    outputCount: state.outputs.length,
+    selectedInput: state.input ? portSummary(state.input) : null,
+    selectedOutput: state.output ? portSummary(state.output) : null,
+    matchedEpPorts: matched,
+    inputs,
+    outputs
+  });
+}
+
+function portSummary(port) {
+  return `${port.name || "(unnamed)"} | ${port.manufacturer || "unknown"} | ${port.state || "unknown"} | ${port.connection || "unknown"} | ${port.id}`;
+}
+
+function diagnoseMidi() {
+  log("MIDI diagnostics", {
+    url: location.href,
+    protocol: location.protocol,
+    secureContext: window.isSecureContext,
+    requestMIDIAccess: typeof navigator.requestMIDIAccess === "function",
+    sysexGranted: state.sysex,
+    midiAccessCreated: !!state.midi,
+    inputCount: state.inputs.length,
+    outputCount: state.outputs.length,
+    userAgent: navigator.userAgent
+  });
+  if (state.midi) logPortSummary("Current browser MIDI ports.");
+  else log("Click Connect MIDI to request browser MIDI permission and enumerate EP-133 ports.");
 }
 
 function renderPortSelect(select, ports, emptyLabel) {
@@ -594,6 +665,11 @@ function exportManifest() {
 }
 
 els.connectBtn.addEventListener("click", connectMidi);
+els.refreshPortsBtn.addEventListener("click", () => {
+  refreshMidiPorts();
+  logPortSummary("Manual port refresh.");
+});
+els.diagnoseMidiBtn.addEventListener("click", diagnoseMidi);
 els.midiInSelect.addEventListener("change", selectPorts);
 els.midiOutSelect.addEventListener("change", selectPorts);
 els.identityBtn.addEventListener("click", sendUniversalIdentity);
