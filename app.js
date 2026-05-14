@@ -22,6 +22,8 @@ const {
   audioBufferToWavBlob,
   bytesToHuman,
   decodeAudioFile,
+  decodePcmFile,
+  ensureAudioContext,
   safeName,
   seconds
 } = window.KO2Audio;
@@ -34,11 +36,15 @@ const defaultSettings = {
   allowReadProbes: true,
   unlockWriteActions: false,
   logRawMidi: true,
+  autoLoadProject: true,
   deviceId: 0x7f,
   probeTimeout: 3000,
   portPollAttempts: 5,
   portPollInterval: 300,
-  recursiveScanDepth: 3
+  recursiveScanDepth: 3,
+  pcmSampleRate: 44100,
+  pcmChannels: 1,
+  pcmBitDepth: 16
 };
 
 const state = {
@@ -67,6 +73,18 @@ const state = {
   deviceTree: [],
   selected: new Set(),
   audioContext: null,
+  projectLoadInFlight: false,
+  transport: {
+    playing: false,
+    startedAt: 0,
+    pausedAt: 0,
+    duration: 0,
+    sampleId: "",
+    label: "",
+    source: null,
+    events: [],
+    frame: 0
+  },
   settings: { ...defaultSettings }
 };
 
@@ -84,11 +102,15 @@ const els = {
   settingAllowReadProbes: $("settingAllowReadProbes"),
   settingUnlockWriteActions: $("settingUnlockWriteActions"),
   settingLogRawMidi: $("settingLogRawMidi"),
+  settingAutoLoadProject: $("settingAutoLoadProject"),
   settingDeviceId: $("settingDeviceId"),
   settingProbeTimeout: $("settingProbeTimeout"),
   settingPollAttempts: $("settingPollAttempts"),
   settingPollInterval: $("settingPollInterval"),
   settingScanDepth: $("settingScanDepth"),
+  settingPcmSampleRate: $("settingPcmSampleRate"),
+  settingPcmChannels: $("settingPcmChannels"),
+  settingPcmBitDepth: $("settingPcmBitDepth"),
   exportSettingsBtn: $("exportSettingsBtn"),
   resetSettingsBtn: $("resetSettingsBtn"),
   midiInSelect: $("midiInSelect"),
@@ -143,7 +165,14 @@ const els = {
   metaSerial: $("metaSerial"),
   metaChunk: $("metaChunk"),
   metaSysex: $("metaSysex"),
-  metaPrivileges: $("metaPrivileges")
+  metaPrivileges: $("metaPrivileges"),
+  playSelectedBtn: $("playSelectedBtn"),
+  stopTimelineBtn: $("stopTimelineBtn"),
+  timelineTime: $("timelineTime"),
+  timelineViewport: $("timelineViewport"),
+  timelineRuler: $("timelineRuler"),
+  timelineLanes: $("timelineLanes"),
+  timelinePlayhead: $("timelinePlayhead")
 };
 
 state.te = new TeSysexClient({ log });
@@ -210,6 +239,8 @@ function updateButtons() {
   els.compareDeviceBtn.disabled = !state.samples.length || !state.deviceNodesByPath.size;
   els.downloadAllBtn.disabled = !state.samples.some((sample) => sample.buffer);
   els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
+  els.playSelectedBtn.disabled = !currentPlayableSample();
+  els.stopTimelineBtn.disabled = !state.transport.playing && !state.transport.sampleId;
   els.selectAllBtn.disabled = !filteredSamples().length;
   els.clearSelectionBtn.disabled = !state.selected.size;
   const visible = filteredSamples().map((sample) => sample.id);
@@ -235,6 +266,10 @@ function selectedBufferedSamples() {
   return state.samples.filter((sample) => state.selected.has(sample.id) && sample.buffer);
 }
 
+function currentPlayableSample() {
+  return selectedBufferedSamples()[0] || filteredSamples().find((sample) => sample.buffer) || state.samples.find((sample) => sample.buffer) || null;
+}
+
 async function connectMidi() {
   if (!navigator.requestMIDIAccess) {
     setBadge("err", "Web MIDI unavailable");
@@ -247,6 +282,9 @@ async function connectMidi() {
     logPortSummary("MIDI ports refreshed.");
     if (state.settings.requestSysex && state.settings.autoSysexRetry && !state.sysex) {
       await requestSysexUpgrade();
+    }
+    if (state.sysex && state.settings.autoLoadProject) {
+      await autoLoadProjectData();
     }
     return;
   }
@@ -288,6 +326,7 @@ function refreshMidiPorts() {
   state.inputs.forEach((input) => input.onmidimessage = state.settings.listenInput ? onMidiMessage : null);
   configureClient();
   updateMeta();
+  renderTimeline();
   updateButtons();
 }
 
@@ -301,6 +340,9 @@ async function requestSysexUpgrade() {
     refreshMidiPorts();
     setBadge("ok", "MIDI + SysEx");
     logPortSummary("SysEx access granted.");
+    if (state.settings.autoLoadProject) {
+      await autoLoadProjectData();
+    }
   } catch (error) {
     state.sysex = false;
     updateMeta();
@@ -382,6 +424,7 @@ function selectPorts() {
   updateMeta();
   updateButtons();
   log(`Selected input: ${state.input ? state.input.name : "none"}; output: ${state.output ? state.output.name : "none"}`);
+  if (state.sysex && state.settings.autoLoadProject) autoLoadProjectData();
 }
 
 function configureClient() {
@@ -517,8 +560,58 @@ async function readKnownMetadata(path) {
   await runProbe(`TE metadata ${path}`, async () => {
     const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileMetadataGetPayload(node.id), state.settings.probeTimeout);
     const parsed = parseJsonMetadataPayload(response.payload);
+    mergeDeviceMetadata(path, parsed.metadata);
     return { page: parsed.page, done: parsed.done, metadata: parsed.metadata };
   });
+}
+
+async function autoLoadProjectData() {
+  if (state.projectLoadInFlight || !state.sysex || !state.output || !state.settings.allowReadProbes) return;
+  state.projectLoadInFlight = true;
+  try {
+    log("Auto project load started.");
+    sendUniversalIdentity();
+    await sendTeEchoProbe();
+    await initFileProtocol();
+    if (!state.device.fileChunkSize) {
+      log("Auto project load stopped: file protocol did not report a chunk size.");
+      return;
+    }
+    await readRootInfo();
+    await listRootFolder();
+    if (state.deviceNodesByPath.has("/sounds")) {
+      await listKnownFolder("/sounds");
+      await readKnownMetadata("/sounds");
+    }
+    if (state.deviceNodesByPath.has("/projects")) {
+      await listKnownFolder("/projects");
+      await readKnownMetadata("/projects");
+    }
+    if (state.settings.recursiveScanDepth > 1) {
+      await scanDeviceTree();
+    }
+    log("Auto project load complete.");
+  } finally {
+    state.projectLoadInFlight = false;
+    renderLibrary();
+    renderProject();
+    renderDeviceTree();
+    renderProposals();
+    updateButtons();
+  }
+}
+
+function mergeDeviceMetadata(path, metadata) {
+  if (!metadata || typeof metadata !== "object") return;
+  const candidate = metadata.project || metadata.data || metadata;
+  if (!hasProjectData(candidate)) return;
+  applyProjectData(candidate, `device:${path}`);
+  log(`Merged project metadata from ${path}.`);
+}
+
+function hasProjectData(value) {
+  if (!value || typeof value !== "object") return false;
+  return ["samples", "sounds", "songs", "scenes", "tracks", "pads", "padAssignments", "assignments"].some((key) => Array.isArray(value[key]));
 }
 
 async function runProbe(label, task) {
@@ -537,6 +630,7 @@ async function runProbe(label, task) {
 
 function onMidiMessage(event) {
   const data = new Uint8Array(event.data);
+  if (data[0] !== 0xf0) recordMidiEvent(data);
   const identity = parseUniversalIdentity(data);
   if (identity) {
     state.device.id = identity.deviceId;
@@ -577,6 +671,15 @@ async function handleFiles(files) {
   for (const file of list) {
     if (/\.json$/i.test(file.name)) {
       await importManifest(file);
+    } else if (/\.(pcm|raw)$/i.test(file.name)) {
+      const sample = await decodePcmFile(file, state, {
+        sampleRate: state.settings.pcmSampleRate,
+        channels: state.settings.pcmChannels,
+        bitDepth: state.settings.pcmBitDepth
+      });
+      sample.slot = nextAvailableSlot();
+      state.samples.push(sample);
+      log(`Imported PCM: ${file.name}`);
     } else if (file.type.startsWith("audio/")) {
       const sample = await decodeAudioFile(file, state);
       sample.slot = nextAvailableSlot();
@@ -592,9 +695,15 @@ async function handleFiles(files) {
 
 async function importManifest(file) {
   const json = JSON.parse(await file.text());
+  applyProjectData(json, "manifest");
+  state.selected.clear();
+  log(`Imported manifest: ${file.name}`);
+}
+
+function applyProjectData(json, sourceLabel = "manifest") {
   const sourceSamples = json.samples || json.sounds || [];
   const sourceSongs = json.songs || [];
-  state.samples = sourceSamples.map(normalizeManifestSample);
+  state.samples = sourceSamples.map((sample, index) => normalizeManifestSample({ ...sample, source: sample.source || sourceLabel }, index));
   state.scenes = (json.scenes || sourceSongs.flatMap((song, songIndex) => (song.scenes || []).map((scene, sceneIndex) => ({
     id: scene.id || `${song.id || `song-${songIndex}`}-scene-${sceneIndex}`,
     song: song.name || `Song ${songIndex + 1}`,
@@ -638,8 +747,6 @@ async function importManifest(file) {
     }))
   }));
   state.pads = normalizePads(json);
-  state.selected.clear();
-  log(`Imported manifest: ${file.name}`);
 }
 
 function nextAvailableSlot() {
@@ -718,6 +825,7 @@ function renderLibrary() {
   const rows = filteredSamples();
   if (!rows.length) {
     els.libraryRows.innerHTML = '<tr><td colspan="11" class="muted">No matching samples in this bank.</td></tr>';
+    renderTimeline();
     updateButtons();
     return;
   }
@@ -736,9 +844,10 @@ function renderLibrary() {
       <td>${bytesToHuman(sample.sizeBytes)}</td>
       <td>${waveHtml(sample.waveform)}</td>
       <td>${sample.objectUrl ? `<audio controls preload="none" src="${sample.objectUrl}"></audio>` : '<span class="muted">no buffer</span>'}</td>
-      <td><button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button" title="Download this local audio buffer as WAV."${sample.buffer ? "" : " disabled"}>WAV</button></td>
+      <td><div class="action-row"><button class="playOne" data-id="${escapeHtml(sample.id)}" type="button" title="Play this local audio buffer."${sample.buffer ? "" : " disabled"}>Play</button><button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button" title="Download this local audio buffer as WAV."${sample.buffer ? "" : " disabled"}>WAV</button></div></td>
     </tr>`;
   }).join("");
+  renderTimeline();
   updateButtons();
 }
 
@@ -786,6 +895,7 @@ function renderProject() {
     <strong>${escapeHtml(pad.group ? `${pad.group} ${pad.pad}` : `Pad ${pad.pad}`)}</strong>
     <div class="sub">${escapeHtml(pad.song)} Â· ${escapeHtml(pad.soundName || pad.soundId || "-")} Â· ${escapeHtml(pad.mode || "-")}</div>
   </div>`).join("") : "No pads loaded.";
+  renderTimeline();
 }
 
 function renderPadGrid() {
@@ -800,6 +910,184 @@ function renderPadGrid() {
       <strong>${escapeHtml(label)}</strong>
     </button>`;
   }).join("");
+}
+
+function playCurrentSample(offset = null) {
+  const sample = currentPlayableSample();
+  if (!sample || !sample.buffer) return;
+  const audio = ensureAudioContext(state);
+  const requestedOffset = offset ?? (state.transport.pausedAt || 0);
+  const startOffset = requestedOffset >= sample.buffer.duration ? 0 : Math.max(0, Math.min(requestedOffset, sample.buffer.duration));
+  stopTransport(false);
+  const source = audio.createBufferSource();
+  source.buffer = sample.buffer;
+  source.connect(audio.destination);
+  source.onended = () => {
+    if (state.transport.source === source) stopTransport(false);
+  };
+  source.start(0, startOffset);
+  state.transport.playing = true;
+  state.transport.startedAt = audio.currentTime - startOffset;
+  state.transport.pausedAt = startOffset;
+  state.transport.duration = sample.buffer.duration;
+  state.transport.sampleId = sample.id;
+  state.transport.label = sample.name;
+  state.transport.source = source;
+  recordTimelineEvent("audio", sample.name, startOffset, sample.buffer.duration - startOffset, sample.id);
+  log(`Playback started: ${sample.name} @ ${seconds(startOffset)}.`);
+  startTimelineLoop();
+  updateButtons();
+}
+
+function stopTransport(reset = true) {
+  if (state.transport.source) {
+    try {
+      state.transport.source.onended = null;
+      state.transport.source.stop();
+    } catch (error) {
+      // Source may already be stopped by the browser audio engine.
+    }
+  }
+  if (state.transport.playing) {
+    state.transport.pausedAt = reset ? 0 : transportCurrentTime();
+  } else if (reset) {
+    state.transport.pausedAt = 0;
+  }
+  state.transport.playing = false;
+  state.transport.source = null;
+  cancelAnimationFrame(state.transport.frame);
+  renderTimeline();
+  updateButtons();
+}
+
+function transportCurrentTime() {
+  if (!state.transport.playing || !state.audioContext) return state.transport.pausedAt || 0;
+  return Math.min(state.transport.duration || 0, Math.max(0, state.audioContext.currentTime - state.transport.startedAt));
+}
+
+function startTimelineLoop() {
+  cancelAnimationFrame(state.transport.frame);
+  const tick = () => {
+    renderTimeline();
+    if (state.transport.playing) state.transport.frame = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+function renderTimeline() {
+  const sample = state.samples.find((item) => item.id === state.transport.sampleId) || currentPlayableSample();
+  const arrangementDuration = arrangementTimelineDuration();
+  const duration = Math.max(4, state.transport.duration || sample?.duration || arrangementDuration || 16);
+  const current = Math.min(duration, transportCurrentTime());
+  const percent = duration ? (current / duration) * 100 : 0;
+  els.timelineTime.textContent = `${formatTimelineTime(current)} / ${formatTimelineTime(duration)}`;
+  els.timelinePlayhead.style.left = `${percent}%`;
+  renderTimelineRuler(duration);
+  renderTimelineLanes(duration, sample);
+}
+
+function renderTimelineRuler(duration) {
+  const ticks = 8;
+  els.timelineRuler.innerHTML = Array.from({ length: ticks + 1 }, (_, index) => {
+    const time = (duration / ticks) * index;
+    return `<span style="left:${(index / ticks) * 100}%">${formatTimelineTime(time)}</span>`;
+  }).join("");
+}
+
+function renderTimelineLanes(duration, sample) {
+  const audioClip = sample ? timelineClipHtml({
+    label: sample.name,
+    start: 0,
+    duration: sample.duration || duration,
+    total: duration,
+    className: state.transport.sampleId === sample.id ? " playing" : ""
+  }) : "";
+  const arrangement = arrangementClipHtml(duration);
+  const midi = midiEventHtml(duration);
+  els.timelineLanes.innerHTML = `
+    ${timelineLaneHtml("Audio", audioClip || '<span class="timeline-empty">No local sample selected</span>')}
+    ${timelineLaneHtml("Project", arrangement || '<span class="timeline-empty">No clips loaded</span>')}
+    ${timelineLaneHtml("MIDI In", midi || '<span class="timeline-empty">No MIDI activity</span>')}
+  `;
+}
+
+function timelineLaneHtml(label, content) {
+  return `<div class="timeline-row"><div class="timeline-lane-label">${escapeHtml(label)}</div><div class="timeline-track">${content}</div></div>`;
+}
+
+function timelineClipHtml({ label, start, duration, total, className = "" }) {
+  const left = Math.max(0, Math.min(100, (start / total) * 100));
+  const width = Math.max(1, Math.min(100 - left, (duration / total) * 100));
+  return `<button class="timeline-clip${className}" type="button" style="left:${left}%;width:${width}%;" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+}
+
+function arrangementClipHtml(total) {
+  const secondsPerBar = 2;
+  return state.tracks.flatMap((track) => (track.clips || []).map((clip) => timelineClipHtml({
+    label: `${track.name}: ${clip.soundName || clip.soundId || "clip"}`,
+    start: Number(clip.barStart || 0) * secondsPerBar,
+    duration: Math.max(secondsPerBar / 2, Number(clip.bars || 1) * secondsPerBar),
+    total,
+    className: " project"
+  }))).join("");
+}
+
+function midiEventHtml(total) {
+  const now = transportCurrentTime();
+  return state.transport.events
+    .filter((event) => event.type === "midi" && event.start >= Math.max(0, now - total) && event.start <= total)
+    .map((event) => timelineClipHtml({
+      label: event.label,
+      start: event.start,
+      duration: event.duration,
+      total,
+      className: " midi"
+    }))
+    .join("");
+}
+
+function arrangementTimelineDuration() {
+  const secondsPerBar = 2;
+  const ends = state.tracks.flatMap((track) => (track.clips || []).map((clip) => (Number(clip.barStart || 0) + Number(clip.bars || 1)) * secondsPerBar));
+  return Math.max(0, ...ends);
+}
+
+function recordTimelineEvent(type, label, start, duration = 0.25, sampleId = "") {
+  state.transport.events.push({ type, label, start, duration, sampleId });
+  if (state.transport.events.length > 160) state.transport.events.splice(0, state.transport.events.length - 160);
+  renderTimeline();
+}
+
+function recordMidiEvent(data) {
+  const status = data[0] & 0xf0;
+  const channel = (data[0] & 0x0f) + 1;
+  const note = data[1];
+  const velocity = data[2] || 0;
+  const label = status === 0x90 && velocity ? `ch${channel} note ${note}` : status === 0x80 || status === 0x90 ? `ch${channel} off ${note}` : `ch${channel} ${bytesToHex(data)}`;
+  recordTimelineEvent("midi", label, transportCurrentTime(), 0.35);
+}
+
+function seekTimeline(event) {
+  const sample = state.samples.find((item) => item.id === state.transport.sampleId) || currentPlayableSample();
+  if (!sample?.buffer) return;
+  const rect = els.timelineViewport.getBoundingClientRect();
+  const offset = ((event.clientX - rect.left) / rect.width) * sample.buffer.duration;
+  if (state.transport.playing) playCurrentSample(offset);
+  else {
+    state.transport.sampleId = sample.id;
+    state.transport.label = sample.name;
+    state.transport.duration = sample.buffer.duration;
+    state.transport.pausedAt = Math.max(0, Math.min(sample.buffer.duration, offset));
+    renderTimeline();
+    updateButtons();
+  }
+}
+
+function formatTimelineTime(value) {
+  if (!Number.isFinite(value)) return "--";
+  const minutes = Math.floor(value / 60);
+  const secondsValue = value - minutes * 60;
+  return `${String(minutes).padStart(2, "0")}:${secondsValue.toFixed(2).padStart(5, "0")}`;
 }
 
 function renderDeviceTree() {
@@ -941,11 +1229,15 @@ function syncSettingsForm() {
   els.settingAllowReadProbes.checked = state.settings.allowReadProbes;
   els.settingUnlockWriteActions.checked = state.settings.unlockWriteActions;
   els.settingLogRawMidi.checked = state.settings.logRawMidi;
+  els.settingAutoLoadProject.checked = state.settings.autoLoadProject;
   els.settingDeviceId.value = state.settings.deviceId;
   els.settingProbeTimeout.value = state.settings.probeTimeout;
   els.settingPollAttempts.value = state.settings.portPollAttempts;
   els.settingPollInterval.value = state.settings.portPollInterval;
   els.settingScanDepth.value = state.settings.recursiveScanDepth;
+  els.settingPcmSampleRate.value = state.settings.pcmSampleRate;
+  els.settingPcmChannels.value = state.settings.pcmChannels;
+  els.settingPcmBitDepth.value = state.settings.pcmBitDepth;
 }
 
 function readSettingsForm() {
@@ -957,11 +1249,15 @@ function readSettingsForm() {
     allowReadProbes: els.settingAllowReadProbes.checked,
     unlockWriteActions: els.settingUnlockWriteActions.checked,
     logRawMidi: els.settingLogRawMidi.checked,
+    autoLoadProject: els.settingAutoLoadProject.checked,
     deviceId: clampNumber(els.settingDeviceId.value, 0, 127, defaultSettings.deviceId),
     probeTimeout: clampNumber(els.settingProbeTimeout.value, 250, 30000, defaultSettings.probeTimeout),
     portPollAttempts: clampNumber(els.settingPollAttempts.value, 0, 30, defaultSettings.portPollAttempts),
     portPollInterval: clampNumber(els.settingPollInterval.value, 50, 5000, defaultSettings.portPollInterval),
-    recursiveScanDepth: clampNumber(els.settingScanDepth.value, 1, 10, defaultSettings.recursiveScanDepth)
+    recursiveScanDepth: clampNumber(els.settingScanDepth.value, 1, 10, defaultSettings.recursiveScanDepth),
+    pcmSampleRate: clampNumber(els.settingPcmSampleRate.value, 8000, 192000, defaultSettings.pcmSampleRate),
+    pcmChannels: clampNumber(els.settingPcmChannels.value, 1, 2, defaultSettings.pcmChannels),
+    pcmBitDepth: clampNumber(els.settingPcmBitDepth.value, 8, 32, defaultSettings.pcmBitDepth)
   };
   syncSettingsForm();
   configureClient();
@@ -1013,14 +1309,21 @@ els.diagnoseMidiBtn.addEventListener("click", diagnoseMidi);
   els.settingAllowReadProbes,
   els.settingUnlockWriteActions,
   els.settingLogRawMidi,
+  els.settingAutoLoadProject,
   els.settingDeviceId,
   els.settingProbeTimeout,
   els.settingPollAttempts,
   els.settingPollInterval,
-  els.settingScanDepth
+  els.settingScanDepth,
+  els.settingPcmSampleRate,
+  els.settingPcmChannels,
+  els.settingPcmBitDepth
 ].forEach((control) => control.addEventListener("change", readSettingsForm));
 els.exportSettingsBtn.addEventListener("click", exportSettings);
 els.resetSettingsBtn.addEventListener("click", resetSettings);
+els.playSelectedBtn.addEventListener("click", () => playCurrentSample());
+els.stopTimelineBtn.addEventListener("click", () => stopTransport(true));
+els.timelineViewport.addEventListener("click", seekTimeline);
 els.midiInSelect.addEventListener("change", selectPorts);
 els.midiOutSelect.addEventListener("change", selectPorts);
 els.identityBtn.addEventListener("click", sendUniversalIdentity);
@@ -1101,6 +1404,17 @@ els.libraryRows.addEventListener("change", (event) => {
   updateButtons();
 });
 els.libraryRows.addEventListener("click", (event) => {
+  const playButton = event.target.closest(".playOne");
+  if (playButton) {
+    const sample = state.samples.find((item) => item.id === playButton.dataset.id);
+    if (sample) {
+      state.selected.clear();
+      state.selected.add(sample.id);
+      playCurrentSample(0);
+      renderLibrary();
+    }
+    return;
+  }
   const button = event.target.closest(".downloadOne");
   if (!button) return;
   const sample = state.samples.find((item) => item.id === button.dataset.id);

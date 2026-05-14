@@ -263,11 +263,12 @@ h3 { margin: 0 0 8px; font-size: .8rem; text-transform: uppercase; color: var(--
 }
 
 .transport-panel { grid-column: 1 / -1; }
-.sample-panel { grid-column: 1; grid-row: 2; }
-.arrangement-panel { grid-column: 1; grid-row: 3; }
-.tree-panel { grid-column: 1; grid-row: 4; }
-.proposals-panel { grid-column: 2; grid-row: 2; }
-.log-panel { grid-column: 2; grid-row: 3 / span 2; }
+.timeline-panel { grid-column: 1 / -1; }
+.sample-panel { grid-column: 1; grid-row: 3; }
+.arrangement-panel { grid-column: 1; grid-row: 4; }
+.tree-panel { grid-column: 1; grid-row: 5; }
+.proposals-panel { grid-column: 2; grid-row: 3; }
+.log-panel { grid-column: 2; grid-row: 4 / span 2; }
 
 .transport-actions {
   display: inline-flex;
@@ -314,6 +315,109 @@ h3 { margin: 0 0 8px; font-size: .8rem; text-transform: uppercase; color: var(--
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.timeline-viewport {
+  position: relative;
+  min-height: 188px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0, rgba(255,255,255,.035) 1px, transparent 1px, transparent 8.333%),
+    #0a0d11;
+  cursor: crosshair;
+}
+
+.timeline-ruler {
+  position: relative;
+  height: 24px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font: .68rem var(--mono);
+}
+
+.timeline-ruler span {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.timeline-lanes {
+  display: grid;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  min-height: 52px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.timeline-row:last-child {
+  border-bottom: 0;
+}
+
+.timeline-lane-label {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--line-soft);
+  color: var(--muted);
+  padding: 0 9px;
+  font-size: .74rem;
+  text-transform: uppercase;
+}
+
+.timeline-track {
+  position: relative;
+  min-width: 0;
+  padding: 7px;
+}
+
+.timeline-empty {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.timeline-clip {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  overflow: hidden;
+  border-color: rgba(101, 199, 216, .55);
+  background: rgba(101, 199, 216, .16);
+  color: var(--text);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-clip.playing {
+  border-color: var(--accent);
+  background: rgba(246, 207, 63, .2);
+}
+
+.timeline-clip.project {
+  border-color: rgba(178, 156, 255, .5);
+  background: rgba(178, 156, 255, .13);
+}
+
+.timeline-clip.midi {
+  min-width: 34px;
+  border-color: rgba(95, 208, 140, .56);
+  background: rgba(95, 208, 140, .17);
+  font-size: .72rem;
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 0 12px rgba(246, 207, 63, .5);
+  pointer-events: none;
 }
 
 .bank-tabs {
@@ -412,7 +516,7 @@ h3 { margin: 0 0 8px; font-size: .8rem; text-transform: uppercase; color: var(--
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 1120px;
   background: #0d1014;
 }
 
@@ -455,6 +559,18 @@ th {
 .assign-dot.active {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+.action-row {
+  display: inline-flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.action-row button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: .74rem;
 }
 
 tbody tr:hover {
@@ -510,6 +626,7 @@ audio {
   }
 
   .transport-panel,
+  .timeline-panel,
   .sample-panel,
   .arrangement-panel,
   .tree-panel,

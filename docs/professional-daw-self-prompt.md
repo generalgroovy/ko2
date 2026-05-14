@@ -28,6 +28,9 @@ Make the first screen feel like a compact DAW hardware editor, not a lab noteboo
 - Device tree export for protocol debugging.
 - Protocol log export for reproducing hardware sessions.
 - Ten-bank local sample browser and pad grid fed by imported metadata.
+- Real-time, interactable left-to-right timeline for local sample playback, imported project clips, and browser-observable MIDI input events.
+- Raw PCM import/playback with configurable sample rate, channels, and bit depth.
+- Automatic read-only project loading after MIDI/SysEx connection, while preserving manual probe buttons for recovery.
 - Local sample versus cached device tree comparison by normalized filename and byte size.
 - Project view for scenes, tracks, clips, pads, and sample references from imported metadata.
 - Future verified sample backup using read-only file GET after device paths are confirmed.
@@ -45,15 +48,17 @@ Make the first screen feel like a compact DAW hardware editor, not a lab noteboo
 4. Click `Connect MIDI`.
 5. Confirm plain MIDI registration first, then SysEx privilege request.
 6. Confirm KO II input/output are visible and selected.
-7. Run `Diagnose MIDI`, then `Identity`.
-8. If SysEx is granted, run read-only probes in order:
+7. Confirm auto-load starts when SysEx is granted.
+8. Use `Diagnose MIDI` and manual probes only if auto-load does not complete.
+9. If SysEx is granted, the read-only sequence should cover:
    - `TE echo`
    - `File init`
    - `Root info`
    - `List root`
    - `Recursive scan`
-9. Export the protocol log and cached tree after any hardware session.
-10. Do not execute write-surface actions unless their implementation has been independently verified.
+10. Import WAV/AIFF/PCM locally, play a sample, and verify the timeline playhead moves left to right.
+11. Export the protocol log and cached tree after any hardware session.
+12. Do not execute write-surface actions unless their implementation has been independently verified.
 
 ## Implementation Task
 

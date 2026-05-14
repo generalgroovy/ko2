@@ -70,6 +70,10 @@
             <input id="settingLogRawMidi" type="checkbox" checked>
             <span>Log unmatched MIDI input</span>
           </label>
+          <label class="check-row">
+            <input id="settingAutoLoadProject" type="checkbox" checked>
+            <span>Auto-load project after connect</span>
+          </label>
           <label>
             Device ID
             <input id="settingDeviceId" type="number" min="0" max="127" value="127" title="SysEx target device ID. 127 is broadcast.">
@@ -89,6 +93,18 @@
           <label>
             Recursive scan depth
             <input id="settingScanDepth" type="number" min="1" max="10" value="3" title="Maximum folder depth for read-only recursive device scans.">
+          </label>
+          <label>
+            PCM sample rate
+            <input id="settingPcmSampleRate" type="number" min="8000" max="192000" step="1000" value="44100" title="Playback sample rate for raw PCM files.">
+          </label>
+          <label>
+            PCM channels
+            <input id="settingPcmChannels" type="number" min="1" max="2" value="1" title="Channel count for raw PCM files.">
+          </label>
+          <label>
+            PCM bit depth
+            <input id="settingPcmBitDepth" type="number" min="8" max="32" step="8" value="16" title="Bit depth for raw PCM files.">
           </label>
           <div class="row">
             <button id="exportSettingsBtn" type="button" title="Download current runtime settings as JSON.">Export settings</button>
@@ -113,8 +129,8 @@
         <section class="section stack">
           <h2>Sample Import</h2>
           <label class="drop" id="dropZone">
-            <input id="fileInput" type="file" multiple accept="audio/*,.json">
-            <span>Drop audio or manifest JSON</span>
+            <input id="fileInput" type="file" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.pcm,.raw,.json">
+            <span>Drop audio, PCM, or manifest JSON</span>
           </label>
           <div class="row">
             <button id="exportManifestBtn" type="button" disabled title="Export local samples and imported project data as JSON.">Export manifest</button>
@@ -154,6 +170,22 @@
             <div><span>File chunk</span><strong id="metaChunk">-</strong></div>
             <div><span>SysEx</span><strong id="metaSysex">-</strong></div>
             <div><span>Privileges</span><strong id="metaPrivileges">-</strong></div>
+          </div>
+        </section>
+
+        <section class="panel section timeline-panel">
+          <div class="section-header">
+            <h2>Live Timeline</h2>
+            <div class="row">
+              <button id="playSelectedBtn" type="button" disabled title="Play the selected local sample and show it on the timeline.">Play selected</button>
+              <button id="stopTimelineBtn" type="button" disabled title="Stop local sample playback and reset the playhead.">Stop</button>
+              <span id="timelineTime" class="mini-stat">00:00.00 / --</span>
+            </div>
+          </div>
+          <div id="timelineViewport" class="timeline-viewport" title="Click to seek within the current local sample.">
+            <div id="timelineRuler" class="timeline-ruler"></div>
+            <div id="timelineLanes" class="timeline-lanes"></div>
+            <div id="timelinePlayhead" class="timeline-playhead"></div>
           </div>
         </section>
 

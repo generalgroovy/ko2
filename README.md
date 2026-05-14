@@ -14,6 +14,9 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Implements proposal surfaces for recursive device-tree scanning, cached tree export, protocol log export, local-vs-device sample comparison, and pad assignment rendering from imported metadata.
 - Uses a DAW workspace layout with a left inspector, transport/device strip, central sample and arrangement panels, hardware file browser, function queue, and session log.
 - Mirrors official EP Sample Tool reference targets with ten sample banks, 999-slot awareness, assignment dots, and a group A-D / 12-pad grid fed by imported metadata.
+- Adds an interactable live timeline for local sample playback, imported project clips, and incoming MIDI activity.
+- Imports raw `.pcm` and `.raw` files using configurable sample rate, channels, and bit depth, converting them to playable browser audio.
+- Can auto-load read-only project metadata after MIDI/SysEx connection instead of requiring each probe button to be pressed manually.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.
