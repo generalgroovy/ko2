@@ -1,0 +1,88 @@
+# KO II Web MIDI Lab
+
+Static browser lab for exploring Teenage Engineering EP / KO II communication over USB MIDI.
+
+This project is intentionally conservative. It implements Web MIDI connection, local sample import/export, TE SysEx frame helpers, and read-only protocol probes. Device-mutating commands are blocked by default.
+
+## Current Features
+
+- Connects to MIDI devices through `navigator.requestMIDIAccess({ sysex: true })`.
+- Tracks MIDI inputs and outputs separately.
+- Sends the universal MIDI identity request.
+- Parses Teenage Engineering identity replies when present.
+- Builds and parses Teenage Engineering SysEx frames.
+- Implements 7-bit SysEx payload packing and unpacking.
+- Provides read-only probe buttons:
+  - Universal identity
+  - TE echo
+  - TE file protocol init
+  - TE root folder list, after init
+- Imports local audio files in the browser.
+- Renders waveform previews from decoded audio.
+- Exports selected local samples as WAV.
+- Exports a local JSON manifest.
+
+## Safety
+
+The official EP Sample Tool uses a vendor SysEx file-transfer protocol over Web MIDI. This repo includes protocol scaffolding, but it is not a full replacement for the official tool.
+
+Write-capable operations are blocked unless `EXPERIMENTAL_WRITE_ENABLED` is changed in `te-sysex.js`.
+
+Blocked by default:
+
+- `PUT`
+- `DELETE`
+- `MOVE`
+- `METADATA_SET`
+- `PLAYBACK_START`
+
+Do not enable write commands without a device you can safely test against and a current backup made with the official tool.
+
+## Browser Requirements
+
+- A browser with Web MIDI and SysEx permission support.
+- Chrome, Edge, or another Chromium-based browser is the safest choice.
+- A real USB-C data cable, not a charge-only cable.
+- Browser permission for MIDI and SysEx.
+- The KO II / EP MIDI ports must not be exclusively held by another app.
+
+## What Is Known From The Official EP Sample Tool
+
+The official Teenage Engineering app says it can upload, download, delete, edit, and quickly assign samples to pads. It uses a Web MIDI-compatible browser and connects to KO II over USB.
+
+The inspected official bundle uses:
+
+- `navigator.requestMIDIAccess`
+- `onmidimessage`
+- `MIDIOutput.send()`
+
+It does not appear to use:
+
+- `navigator.usb`
+- `navigator.serial`
+- `navigator.hid`
+
+So USB-C communication is exposed to the browser as USB MIDI, with sample/project transfer implemented as vendor SysEx.
+
+## Supported Device SKUs Seen In The Official Bundle
+
+- `TE032AS001` - EP-133 K.O. II
+- `TE032AS005` - EP-1320 medieval
+- `TE032AS006` - EP-40 riddim
+
+## Roadmap
+
+1. Verify identity, echo, file init, and root list against real hardware.
+2. Expand read-only file-tree listing.
+3. Read file metadata safely.
+4. Add sample download once file paths and metadata are confirmed.
+5. Add guarded upload/delete only after repeatable backups and restore tests.
+
+## Files
+
+- `index.html` - static app shell.
+- `styles.css` - UI styling.
+- `app.js` - browser app state and UI wiring.
+- `te-sysex.js` - SysEx frame, packing, constants, and read-only protocol helpers.
+- `audio.js` - local audio decode, waveform, and WAV export helpers.
+- `docs/protocol-notes.md` - protocol notes collected from the official app bundle.
