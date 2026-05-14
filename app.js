@@ -37,7 +37,8 @@ const defaultSettings = {
   deviceId: 0x7f,
   probeTimeout: 3000,
   portPollAttempts: 5,
-  portPollInterval: 300
+  portPollInterval: 300,
+  recursiveScanDepth: 3
 };
 
 const state = {
@@ -58,6 +59,8 @@ const state = {
   samples: [],
   tracks: [],
   scenes: [],
+  pads: [],
+  comparison: [],
   deviceNodesByPath: new Map(),
   deviceTree: [],
   selected: new Set(),
@@ -83,6 +86,7 @@ const els = {
   settingProbeTimeout: $("settingProbeTimeout"),
   settingPollAttempts: $("settingPollAttempts"),
   settingPollInterval: $("settingPollInterval"),
+  settingScanDepth: $("settingScanDepth"),
   exportSettingsBtn: $("exportSettingsBtn"),
   resetSettingsBtn: $("resetSettingsBtn"),
   midiInSelect: $("midiInSelect"),
@@ -105,6 +109,7 @@ const els = {
   dropZone: $("dropZone"),
   fileInput: $("fileInput"),
   exportManifestBtn: $("exportManifestBtn"),
+  compareDeviceBtn: $("compareDeviceBtn"),
   downloadAllBtn: $("downloadAllBtn"),
   downloadSelectedBtn: $("downloadSelectedBtn"),
   searchInput: $("searchInput"),
@@ -113,9 +118,13 @@ const els = {
   masterCheckbox: $("masterCheckbox"),
   libraryRows: $("libraryRows"),
   clearLogBtn: $("clearLogBtn"),
+  exportLogBtn: $("exportLogBtn"),
   clearTreeBtn: $("clearTreeBtn"),
+  scanTreeBtn: $("scanTreeBtn"),
+  exportTreeBtn: $("exportTreeBtn"),
   sceneList: $("sceneList"),
   trackList: $("trackList"),
+  padList: $("padList"),
   deviceTree: $("deviceTree"),
   proposalList: $("proposalList"),
   log: $("log"),
@@ -180,6 +189,8 @@ function updateButtons() {
   els.listProjectsBtn.disabled = !canRead || !state.deviceNodesByPath.has("/projects");
   els.readSoundsMetaBtn.disabled = !canRead || !state.deviceNodesByPath.has("/sounds");
   els.readProjectsMetaBtn.disabled = !canRead || !state.deviceNodesByPath.has("/projects");
+  els.scanTreeBtn.disabled = !canRead || !state.device.fileChunkSize;
+  els.exportTreeBtn.disabled = !state.deviceNodesByPath.size;
   [
     els.uploadSampleBtn,
     els.deleteSampleBtn,
@@ -189,6 +200,7 @@ function updateButtons() {
     els.backupRestoreBtn
   ].forEach((button) => button.disabled = !state.settings.unlockWriteActions);
   els.exportManifestBtn.disabled = !state.samples.length;
+  els.compareDeviceBtn.disabled = !state.samples.length || !state.deviceNodesByPath.size;
   els.downloadAllBtn.disabled = !state.samples.some((sample) => sample.buffer);
   els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
   els.selectAllBtn.disabled = !filteredSamples().length;
@@ -441,6 +453,35 @@ async function listKnownFolder(path) {
   });
 }
 
+async function scanDeviceTree() {
+  await runProbe("TE recursive tree scan", async () => {
+    const visited = new Set();
+    const queue = [{ id: 0, path: "/", depth: 0 }];
+    const scanned = [];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (visited.has(current.id) || current.depth > state.settings.recursiveScanDepth) continue;
+      visited.add(current.id);
+      const parsed = await listFolderByNode(current.id, current.path);
+      scanned.push({ path: current.path, entries: parsed.entries.length });
+      parsed.entries
+        .filter((entry) => entry.isDirectory)
+        .forEach((entry) => queue.push({ id: entry.id, path: entry.path, depth: current.depth + 1 }));
+    }
+
+    renderDeviceTree();
+    renderProposals();
+    updateButtons();
+    return {
+      maxDepth: state.settings.recursiveScanDepth,
+      foldersScanned: scanned.length,
+      nodesCached: state.deviceNodesByPath.size,
+      scanned
+    };
+  });
+}
+
 async function listFolderByNode(nodeId, path) {
   const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileListPayload(nodeId, 0), state.settings.probeTimeout);
   const parsed = parseFileListResponse(response.payload);
@@ -583,8 +624,30 @@ async function importManifest(file) {
       soundName: clip.soundName || sampleName(clip.soundId)
     }))
   }));
+  state.pads = normalizePads(json);
   state.selected.clear();
   log(`Imported manifest: ${file.name}`);
+}
+
+function normalizePads(json) {
+  const sourcePads = json.pads || json.padAssignments || json.assignments || [];
+  const songPads = (json.songs || []).flatMap((song, songIndex) => (song.pads || song.padAssignments || []).map((pad, padIndex) => ({
+    ...pad,
+    song: song.name || `Song ${songIndex + 1}`,
+    id: pad.id || `${song.id || `song-${songIndex}`}-pad-${padIndex}`
+  })));
+  return [...sourcePads, ...songPads].map((pad, index) => {
+    const soundId = pad.soundId || pad.sampleId || pad.sample || pad.sound || "";
+    return {
+      id: pad.id || `pad-${index}`,
+      group: pad.group || pad.bank || pad.track || "",
+      pad: pad.pad || pad.index || pad.number || index + 1,
+      soundId,
+      soundName: pad.soundName || sampleName(soundId),
+      mode: pad.mode || pad.playMode || pad.type || "",
+      song: pad.song || "Project"
+    };
+  });
 }
 
 function normalizeManifestSample(sample, index) {
@@ -644,6 +707,7 @@ function renderLibrary() {
 function renderProject() {
   els.sceneList.classList.toggle("muted", !state.scenes.length);
   els.trackList.classList.toggle("muted", !state.tracks.length);
+  els.padList.classList.toggle("muted", !state.pads.length);
   els.sceneList.innerHTML = state.scenes.length ? state.scenes.map((scene) => `<div class="item">
     <strong>${escapeHtml(scene.name)}</strong>
     <div class="sub">${escapeHtml(scene.song)} · ${scene.bars || 0} bars · groups ${escapeHtml((scene.groups || []).join(", ") || "-")} · patterns ${escapeHtml((scene.patterns || []).join(", ") || "-")}</div>
@@ -653,6 +717,10 @@ function renderProject() {
     <div class="sub">${escapeHtml(track.song)} · ${escapeHtml(track.group || "-")} · ${track.clips.length} clips</div>
     <div class="sub">${track.clips.map((clip) => `${escapeHtml(clip.soundName)} @ ${clip.barStart || 0}/${clip.bars || 0}`).join("<br>") || "No clips"}</div>
   </div>`).join("") : "No tracks loaded.";
+  els.padList.innerHTML = state.pads.length ? state.pads.map((pad) => `<div class="item">
+    <strong>${escapeHtml(pad.group ? `${pad.group} ${pad.pad}` : `Pad ${pad.pad}`)}</strong>
+    <div class="sub">${escapeHtml(pad.song)} Â· ${escapeHtml(pad.soundName || pad.soundId || "-")} Â· ${escapeHtml(pad.mode || "-")}</div>
+  </div>`).join("") : "No pads loaded.";
 }
 
 function renderDeviceTree() {
@@ -665,14 +733,17 @@ function renderDeviceTree() {
 }
 
 function renderProposals() {
+  const hasTree = state.deviceNodesByPath.size > 0;
+  const hasPads = state.pads.length > 0;
+  const hasComparison = state.comparison.length > 0;
   const proposals = [
-    ["Read-only browser", "Add recursive folder scan and metadata cache once root listing is verified."],
-    ["Sample backup", "Download device samples as WAV after /sounds paths and metadata are confirmed."],
-    ["Pad assignment", "Show active project/group/pad and map sample IDs to pads."],
-    ["Project view", "Render scenes, tracks, pads, and clips from real project metadata."],
-    ["Safe write mode", "Add an explicit hardware-tested unlock flow for upload/delete/metadata writes."],
-    ["Compare mode", "Compare local WAV CRCs against KO II sample metadata before restore."],
-    ["Session capture", "Export raw SysEx request/response logs for protocol validation."]
+    ["Read-only browser", "Implemented recursive folder scan with configurable depth and cached tree export."],
+    ["Sample backup", hasTree ? "Device tree cache is ready for verified sample backup once file GET is implemented." : "List or scan the device tree before attempting backup mapping."],
+    ["Pad assignment", hasPads ? "Imported pad assignments are rendered by group, pad, and sample." : "Pad assignment view is ready for manifests that include pads or padAssignments."],
+    ["Project view", "Scenes, tracks, clips, pads, and local audio contents render from imported metadata."],
+    ["Safe write mode", "Write privileges can be surfaced at runtime, but protocol writes remain blocked until verified."],
+    ["Compare mode", hasComparison ? "Local samples have been compared against cached device filenames and sizes." : "Use Compare device after loading local samples and scanning the device tree."],
+    ["Session capture", "Implemented protocol log export for validation and sharing."]
   ];
   els.proposalList.innerHTML = proposals.map(([title, body]) => `<div class="item">
     <strong>${escapeHtml(title)}</strong>
@@ -721,9 +792,65 @@ function exportManifest() {
     samples: state.samples.map(({ buffer, objectUrl, ...sample }) => sample),
     tracks: state.tracks,
     scenes: state.scenes,
+    pads: state.pads,
+    comparison: state.comparison,
     deviceTree: [...state.deviceNodesByPath.entries()].map(([path, node]) => ({ path, id: node.id, flags: node.flags, size: node.size, name: node.name }))
   };
   downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "ko2-local-samples.json");
+}
+
+function compareLocalSamplesToDevice() {
+  const deviceFiles = [...state.deviceNodesByPath.entries()]
+    .filter(([, node]) => node.isFile)
+    .map(([path, node]) => ({ path, node, normalized: normalizeCompareName(node.name || path.split("/").pop()) }));
+
+  state.comparison = state.samples.map((sample) => {
+    const names = [sample.fileName, sample.name].filter(Boolean).map(normalizeCompareName);
+    const nameMatch = deviceFiles.find((file) => names.includes(file.normalized));
+    const sizeMatch = sample.sizeBytes ? deviceFiles.find((file) => file.node.size === sample.sizeBytes) : null;
+    const match = nameMatch || sizeMatch || null;
+    return {
+      sampleId: sample.id,
+      sampleName: sample.name,
+      localBytes: sample.sizeBytes,
+      devicePath: match ? match.path : "",
+      deviceBytes: match ? match.node.size : 0,
+      status: match ? (sample.sizeBytes && match.node.size && sample.sizeBytes !== match.node.size ? "name-match-size-diff" : "matched") : "missing"
+    };
+  });
+
+  log("Device comparison complete.", {
+    matched: state.comparison.filter((item) => item.status !== "missing").length,
+    missing: state.comparison.filter((item) => item.status === "missing").length,
+    results: state.comparison
+  });
+  renderProposals();
+  updateButtons();
+}
+
+function normalizeCompareName(value) {
+  return safeName(String(value || "").replace(/\.[^.]+$/, "")).toLowerCase();
+}
+
+function exportDeviceTree() {
+  downloadBlob(new Blob([JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    device: state.device,
+    nodes: [...state.deviceNodesByPath.entries()].map(([path, node]) => ({
+      path,
+      id: node.id,
+      parentPath: node.parentPath || "",
+      flags: node.flags,
+      size: node.size,
+      name: node.name,
+      isDirectory: node.isDirectory,
+      isFile: node.isFile
+    }))
+  }, null, 2)], { type: "application/json" }), "ko2-device-tree.json");
+}
+
+function exportProtocolLog() {
+  downloadBlob(new Blob([els.log.textContent], { type: "text/plain" }), "ko2-protocol-log.txt");
 }
 
 function syncSettingsForm() {
@@ -738,6 +865,7 @@ function syncSettingsForm() {
   els.settingProbeTimeout.value = state.settings.probeTimeout;
   els.settingPollAttempts.value = state.settings.portPollAttempts;
   els.settingPollInterval.value = state.settings.portPollInterval;
+  els.settingScanDepth.value = state.settings.recursiveScanDepth;
 }
 
 function readSettingsForm() {
@@ -752,7 +880,8 @@ function readSettingsForm() {
     deviceId: clampNumber(els.settingDeviceId.value, 0, 127, defaultSettings.deviceId),
     probeTimeout: clampNumber(els.settingProbeTimeout.value, 250, 30000, defaultSettings.probeTimeout),
     portPollAttempts: clampNumber(els.settingPollAttempts.value, 0, 30, defaultSettings.portPollAttempts),
-    portPollInterval: clampNumber(els.settingPollInterval.value, 50, 5000, defaultSettings.portPollInterval)
+    portPollInterval: clampNumber(els.settingPollInterval.value, 50, 5000, defaultSettings.portPollInterval),
+    recursiveScanDepth: clampNumber(els.settingScanDepth.value, 1, 10, defaultSettings.recursiveScanDepth)
   };
   syncSettingsForm();
   configureClient();
@@ -807,7 +936,8 @@ els.diagnoseMidiBtn.addEventListener("click", diagnoseMidi);
   els.settingDeviceId,
   els.settingProbeTimeout,
   els.settingPollAttempts,
-  els.settingPollInterval
+  els.settingPollInterval,
+  els.settingScanDepth
 ].forEach((control) => control.addEventListener("change", readSettingsForm));
 els.exportSettingsBtn.addEventListener("click", exportSettings);
 els.resetSettingsBtn.addEventListener("click", resetSettings);
@@ -822,6 +952,8 @@ els.listSoundsBtn.addEventListener("click", () => listKnownFolder("/sounds"));
 els.listProjectsBtn.addEventListener("click", () => listKnownFolder("/projects"));
 els.readSoundsMetaBtn.addEventListener("click", () => readKnownMetadata("/sounds"));
 els.readProjectsMetaBtn.addEventListener("click", () => readKnownMetadata("/projects"));
+els.scanTreeBtn.addEventListener("click", scanDeviceTree);
+els.exportTreeBtn.addEventListener("click", exportDeviceTree);
 els.uploadSampleBtn.addEventListener("click", () => lockedAction("Upload sample"));
 els.deleteSampleBtn.addEventListener("click", () => lockedAction("Delete sample"));
 els.moveFileBtn.addEventListener("click", () => lockedAction("Move file"));
@@ -831,13 +963,17 @@ els.backupRestoreBtn.addEventListener("click", () => lockedAction("Backup / rest
 els.fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 els.searchInput.addEventListener("input", renderLibrary);
 els.clearLogBtn.addEventListener("click", () => els.log.textContent = "Log cleared.");
+els.exportLogBtn.addEventListener("click", exportProtocolLog);
 els.clearTreeBtn.addEventListener("click", () => {
   state.deviceNodesByPath.clear();
   state.deviceTree = [];
+  state.comparison = [];
   renderDeviceTree();
+  renderProposals();
   updateButtons();
 });
 els.exportManifestBtn.addEventListener("click", exportManifest);
+els.compareDeviceBtn.addEventListener("click", compareLocalSamplesToDevice);
 els.downloadAllBtn.addEventListener("click", () => downloadSamples(state.samples, "Download all WAV"));
 els.downloadSelectedBtn.addEventListener("click", () => downloadSamples(state.samples.filter((sample) => state.selected.has(sample.id)), "Download selected WAV"));
 els.selectAllBtn.addEventListener("click", () => {

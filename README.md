@@ -1,8 +1,8 @@
 # KO II Web MIDI Lab
 
-Static browser lab for exploring Teenage Engineering EP / KO II communication over USB MIDI.
+Static DAW-style browser control surface for exploring Teenage Engineering EP / KO II communication over USB MIDI.
 
-This project is intentionally conservative. It implements Web MIDI connection, local sample import/export, TE SysEx frame helpers, and read-only protocol probes. Device-mutating commands are blocked by default.
+This project is intentionally conservative. It implements Web MIDI connection, local sample import/export, TE SysEx frame helpers, and read-only protocol probes in a professional hardware-editor workspace. Device-mutating commands are blocked by default.
 
 ## Current Features
 
@@ -11,6 +11,8 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Tracks MIDI inputs and outputs separately.
 - Includes manual port refresh and browser MIDI diagnostics.
 - Exposes runtime settings for SysEx requests, read probe privilege, write-action visibility, port selection, MIDI listening, logging, poll timing, device ID, and request timeouts.
+- Implements proposal surfaces for recursive device-tree scanning, cached tree export, protocol log export, local-vs-device sample comparison, and pad assignment rendering from imported metadata.
+- Uses a DAW workspace layout with a left inspector, transport/device strip, central sample and arrangement panels, hardware file browser, function queue, and session log.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.

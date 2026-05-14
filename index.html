@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KO II Web MIDI Lab</title>
-  <meta name="description" content="Static Web MIDI and Teenage Engineering SysEx protocol lab for EP / KO II devices.">
+  <title>KO II DAW Control</title>
+  <meta name="description" content="Static DAW-style Web MIDI control surface for Teenage Engineering EP / KO II devices.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app">
+  <main class="app daw-app">
     <header class="topbar">
       <div>
         <p class="eyebrow">EP / KO II</p>
-        <h1>Web MIDI Lab</h1>
-        <p class="lede">Connect, inspect, and safely probe Teenage Engineering EP devices over USB MIDI SysEx.</p>
+        <h1>DAW Control</h1>
+        <p class="lede">USB MIDI control, sample library, project view, and read-only protocol tools.</p>
       </div>
       <div class="status-stack">
         <div class="pill" id="connectionBadge"><span class="dot"></span><span>Not connected</span></div>
@@ -21,12 +21,12 @@
       </div>
     </header>
 
-    <section class="notice">Read-only probes are enabled. Write actions are locked.</section>
+    <section class="notice">Read mode armed. Write commands remain blocked until verified on hardware.</section>
 
     <section class="layout">
-      <aside class="panel stack">
+      <aside class="panel stack inspector">
         <section class="section stack">
-          <h2>Connection</h2>
+          <h2>MIDI I/O</h2>
           <button id="connectBtn" class="primary" type="button" title="Register MIDI ports first, then request SysEx access.">Connect MIDI</button>
           <button id="refreshPortsBtn" type="button" disabled title="Refresh browser MIDI inputs and outputs.">Refresh ports</button>
           <button id="diagnoseMidiBtn" type="button" title="Log browser MIDI support, origin state, and visible ports.">Diagnose MIDI</button>
@@ -41,7 +41,7 @@
         </section>
 
         <section class="section stack">
-          <h2>Runtime Settings</h2>
+          <h2>Runtime</h2>
           <label class="check-row">
             <input id="settingRequestSysex" type="checkbox" checked>
             <span>Request SysEx privilege</span>
@@ -86,6 +86,10 @@
             Port poll interval ms
             <input id="settingPollInterval" type="number" min="50" max="5000" step="50" value="300" title="Delay between port refresh retries.">
           </label>
+          <label>
+            Recursive scan depth
+            <input id="settingScanDepth" type="number" min="1" max="10" value="3" title="Maximum folder depth for read-only recursive device scans.">
+          </label>
           <div class="row">
             <button id="exportSettingsBtn" type="button" title="Download current runtime settings as JSON.">Export settings</button>
             <button id="resetSettingsBtn" type="button" title="Restore default runtime settings.">Reset</button>
@@ -94,7 +98,7 @@
         </section>
 
         <section class="section stack">
-          <h2>Read-Only Probes</h2>
+          <h2>Device Probes</h2>
           <button id="identityBtn" type="button" disabled title="Send the standard MIDI identity request.">Identity</button>
           <button id="teEchoBtn" type="button" disabled title="Send a TE echo SysEx request and log the response.">TE echo</button>
           <button id="fileInitBtn" type="button" disabled title="Initialize the inferred TE file protocol and read chunk size.">File init</button>
@@ -107,20 +111,21 @@
         </section>
 
         <section class="section stack">
-          <h2>Local Samples</h2>
+          <h2>Sample Import</h2>
           <label class="drop" id="dropZone">
             <input id="fileInput" type="file" multiple accept="audio/*,.json">
             <span>Drop audio or manifest JSON</span>
           </label>
           <div class="row">
             <button id="exportManifestBtn" type="button" disabled title="Export local samples and imported project data as JSON.">Export manifest</button>
+            <button id="compareDeviceBtn" type="button" disabled title="Compare local samples with the cached device tree by filename and size.">Compare device</button>
             <button id="downloadAllBtn" type="button" disabled title="Download every local audio buffer as WAV. Missing hardware buffers are skipped.">Download all WAV</button>
             <button id="downloadSelectedBtn" type="button" disabled title="Download selected local audio buffers as WAV. Missing hardware buffers are skipped.">Download selected</button>
           </div>
         </section>
 
         <section class="section stack">
-          <h2>Locked Actions</h2>
+          <h2>Write Surface</h2>
           <button id="uploadSampleBtn" type="button" disabled title="Requires write privilege unlock and verified transfer implementation.">Upload sample</button>
           <button id="deleteSampleBtn" type="button" disabled title="Requires write privilege unlock and verified delete command.">Delete sample</button>
           <button id="moveFileBtn" type="button" disabled title="Requires write privilege unlock and verified move command.">Move file</button>
@@ -130,9 +135,15 @@
         </section>
       </aside>
 
-      <section class="main stack">
-        <section class="panel section">
-          <h2>Device</h2>
+      <section class="main daw-workspace">
+        <section class="panel section transport-panel">
+          <div class="section-header">
+            <h2>Transport / Device</h2>
+            <div class="transport-actions">
+              <span>Session</span>
+              <strong>KO II</strong>
+            </div>
+          </div>
           <div class="meta-grid">
             <div><span>Input</span><strong id="metaInput">-</strong></div>
             <div><span>Output</span><strong id="metaOutput">-</strong></div>
@@ -146,9 +157,9 @@
           </div>
         </section>
 
-        <section class="panel section">
+        <section class="panel section sample-panel">
           <div class="section-header">
-            <h2>Samples</h2>
+            <h2>Sample Pool</h2>
             <div class="row">
               <input id="searchInput" type="search" placeholder="Filter samples">
               <button id="selectAllBtn" type="button" disabled title="Select all visible samples.">Select all</button>
@@ -177,9 +188,9 @@
           </div>
         </section>
 
-        <section class="panel section">
+        <section class="panel section arrangement-panel">
           <div class="section-header">
-            <h2>Tracks & Scenes</h2>
+            <h2>Arrangement</h2>
           </div>
           <div class="project-grid">
             <div>
@@ -190,26 +201,37 @@
               <h3>Tracks</h3>
               <div id="trackList" class="item-list muted">No tracks loaded.</div>
             </div>
+            <div>
+              <h3>Pads</h3>
+              <div id="padList" class="item-list muted">No pads loaded.</div>
+            </div>
           </div>
         </section>
 
-        <section class="panel section">
+        <section class="panel section tree-panel">
           <div class="section-header">
-            <h2>Device Tree</h2>
-            <button id="clearTreeBtn" type="button" title="Clear cached read-only device tree results.">Clear tree</button>
+            <h2>Hardware Files</h2>
+            <div class="row">
+              <button id="scanTreeBtn" type="button" disabled title="Recursively list cached device folders up to the configured scan depth.">Recursive scan</button>
+              <button id="exportTreeBtn" type="button" disabled title="Export the cached read-only device tree as JSON.">Export tree</button>
+              <button id="clearTreeBtn" type="button" title="Clear cached read-only device tree results.">Clear tree</button>
+            </div>
           </div>
           <div id="deviceTree" class="item-list muted">No device folders read.</div>
         </section>
 
-        <section class="panel section">
-          <h2>Further Interaction Proposals</h2>
+        <section class="panel section proposals-panel">
+          <h2>Function Queue</h2>
           <div id="proposalList" class="item-list"></div>
         </section>
 
-        <section class="panel section">
+        <section class="panel section log-panel">
           <div class="section-header">
-            <h2>Protocol Log</h2>
-            <button id="clearLogBtn" type="button" title="Clear the protocol log.">Clear</button>
+            <h2>Session Log</h2>
+            <div class="row">
+              <button id="exportLogBtn" type="button" title="Export the current protocol log as a text file.">Export log</button>
+              <button id="clearLogBtn" type="button" title="Clear the protocol log.">Clear</button>
+            </div>
           </div>
           <pre id="log" class="log">KO II Web MIDI Lab ready.</pre>
         </section>
