@@ -44,7 +44,14 @@ const defaultSettings = {
   recursiveScanDepth: 3,
   pcmSampleRate: 44100,
   pcmChannels: 1,
-  pcmBitDepth: 16
+  pcmBitDepth: 16,
+  performanceMode: "both",
+  performanceChannel: 1,
+  performanceBaseNote: 36,
+  performanceVelocity: 100,
+  performanceGateMs: 180,
+  performanceHold: false,
+  performanceKeyboard: true
 };
 
 const state = {
@@ -83,7 +90,15 @@ const state = {
     label: "",
     source: null,
     events: [],
-    frame: 0
+    frame: 0,
+    heldNotes: new Map()
+  },
+  activity: {
+    state: "idle",
+    midiIn: "-",
+    midiOut: "-",
+    sysex: "-",
+    clock: "stopped"
   },
   settings: { ...defaultSettings }
 };
@@ -111,6 +126,19 @@ const els = {
   settingPcmSampleRate: $("settingPcmSampleRate"),
   settingPcmChannels: $("settingPcmChannels"),
   settingPcmBitDepth: $("settingPcmBitDepth"),
+  performanceModeSelect: $("performanceModeSelect"),
+  performanceChannelSelect: $("performanceChannelSelect"),
+  performanceBaseNote: $("performanceBaseNote"),
+  performanceVelocity: $("performanceVelocity"),
+  performanceVelocityValue: $("performanceVelocityValue"),
+  performanceGateMs: $("performanceGateMs"),
+  performanceHold: $("performanceHold"),
+  performanceKeyboard: $("performanceKeyboard"),
+  panicBtn: $("panicBtn"),
+  clockStartBtn: $("clockStartBtn"),
+  clockContinueBtn: $("clockContinueBtn"),
+  clockTickBtn: $("clockTickBtn"),
+  clockStopBtn: $("clockStopBtn"),
   exportSettingsBtn: $("exportSettingsBtn"),
   resetSettingsBtn: $("resetSettingsBtn"),
   midiInSelect: $("midiInSelect"),
@@ -152,6 +180,7 @@ const els = {
   trackList: $("trackList"),
   padList: $("padList"),
   padGrid: $("padGrid"),
+  padContextMenu: $("padContextMenu"),
   activeGroupSelect: $("activeGroupSelect"),
   projectSummary: $("projectSummary"),
   deviceTree: $("deviceTree"),
@@ -166,6 +195,15 @@ const els = {
   metaChunk: $("metaChunk"),
   metaSysex: $("metaSysex"),
   metaPrivileges: $("metaPrivileges"),
+  activityState: $("activityState"),
+  activityMidiIn: $("activityMidiIn"),
+  activityMidiOut: $("activityMidiOut"),
+  activitySysex: $("activitySysex"),
+  activityNotes: $("activityNotes"),
+  activityClock: $("activityClock"),
+  miniPanicBtn: $("miniPanicBtn"),
+  miniClockStartBtn: $("miniClockStartBtn"),
+  miniClockStopBtn: $("miniClockStopBtn"),
   playSelectedBtn: $("playSelectedBtn"),
   stopTimelineBtn: $("stopTimelineBtn"),
   timelineTime: $("timelineTime"),
@@ -209,12 +247,28 @@ function updateMeta() {
   els.metaSysex.textContent = state.sysex ? "granted" : "not granted";
   els.metaPrivileges.textContent = privilegeSummary();
   els.midiPortLabel.textContent = state.input && state.output ? "MIDI pair selected" : "No MIDI pair";
+  updateActivity();
+}
+
+function updateActivity() {
+  els.activityState.textContent = state.activity.state;
+  els.activityMidiIn.textContent = state.activity.midiIn;
+  els.activityMidiOut.textContent = state.activity.midiOut;
+  els.activitySysex.textContent = state.activity.sysex;
+  els.activityNotes.textContent = String(state.transport.heldNotes.size);
+  els.activityClock.textContent = state.activity.clock;
+}
+
+function setObservedState(value) {
+  state.activity.state = value;
+  updateActivity();
 }
 
 function updateButtons() {
   const hasPair = !!state.input && !!state.output;
   const hasSysexPair = hasPair && state.sysex;
   const canRead = hasSysexPair && state.settings.allowReadProbes;
+  const hasOutput = !!state.output;
   els.refreshPortsBtn.disabled = !state.midi;
   els.identityBtn.disabled = !state.output || !state.sysex || !state.settings.allowReadProbes;
   els.teEchoBtn.disabled = !canRead;
@@ -241,6 +295,16 @@ function updateButtons() {
   els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
   els.playSelectedBtn.disabled = !currentPlayableSample();
   els.stopTimelineBtn.disabled = !state.transport.playing && !state.transport.sampleId;
+  [
+    els.panicBtn,
+    els.miniPanicBtn,
+    els.clockStartBtn,
+    els.miniClockStartBtn,
+    els.clockContinueBtn,
+    els.clockTickBtn,
+    els.clockStopBtn,
+    els.miniClockStopBtn
+  ].forEach((button) => button.disabled = !hasOutput);
   els.selectAllBtn.disabled = !filteredSamples().length;
   els.clearSelectionBtn.disabled = !state.selected.size;
   const visible = filteredSamples().map((sample) => sample.id);
@@ -273,6 +337,7 @@ function currentPlayableSample() {
 async function connectMidi() {
   if (!navigator.requestMIDIAccess) {
     setBadge("err", "Web MIDI unavailable");
+    setObservedState("web midi unavailable");
     log("Web MIDI is unavailable. Use a Web MIDI-compatible browser with SysEx support.");
     return;
   }
@@ -291,6 +356,7 @@ async function connectMidi() {
 
   try {
     state.midi = await navigator.requestMIDIAccess();
+    setObservedState("midi registering");
     state.sysex = false;
     state.midi.onstatechange = refreshMidiPorts;
     refreshMidiPorts();
@@ -301,6 +367,7 @@ async function connectMidi() {
     state.sysex = false;
     setBadge("err", "MIDI permission blocked");
     log(`MIDI access failed: ${error.message}`);
+    setObservedState("midi blocked");
     log("Browser did not grant MIDI. Open this app in Chrome/Edge on localhost and allow MIDI access.");
     return;
   }
@@ -336,6 +403,7 @@ async function requestSysexUpgrade() {
     const sysexAccess = await navigator.requestMIDIAccess({ sysex: true });
     state.midi = sysexAccess;
     state.sysex = true;
+    setObservedState("sysex granted");
     state.midi.onstatechange = refreshMidiPorts;
     refreshMidiPorts();
     setBadge("ok", "MIDI + SysEx");
@@ -345,6 +413,7 @@ async function requestSysexUpgrade() {
     }
   } catch (error) {
     state.sysex = false;
+    setObservedState("sysex blocked");
     updateMeta();
     updateButtons();
     log(`SysEx access not granted: ${error.message}`);
@@ -409,6 +478,25 @@ function renderPortSelect(select, ports, emptyLabel) {
   select.disabled = false;
 }
 
+function renderPerformanceControls() {
+  els.performanceChannelSelect.innerHTML = Array.from({ length: 16 }, (_, index) => {
+    const channel = index + 1;
+    return `<option value="${channel}">Channel ${channel}</option>`;
+  }).join("");
+  syncPerformanceControls();
+}
+
+function syncPerformanceControls() {
+  els.performanceModeSelect.value = state.settings.performanceMode;
+  els.performanceChannelSelect.value = state.settings.performanceChannel;
+  els.performanceBaseNote.value = state.settings.performanceBaseNote;
+  els.performanceVelocity.value = state.settings.performanceVelocity;
+  els.performanceVelocityValue.textContent = state.settings.performanceVelocity;
+  els.performanceGateMs.value = state.settings.performanceGateMs;
+  els.performanceHold.checked = state.settings.performanceHold;
+  els.performanceKeyboard.checked = state.settings.performanceKeyboard;
+}
+
 function choosePreferredPort(ports, current) {
   if (current && ports.some((port) => port.id === current.id)) return ports.find((port) => port.id === current.id);
   if (!state.settings.autoSelectKo) return ports[0] || null;
@@ -437,6 +525,9 @@ function configureClient() {
 function sendUniversalIdentity() {
   if (!state.output) return;
   state.output.send([0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7]);
+  state.activity.midiOut = "identity request";
+  state.activity.sysex = "identity request sent";
+  setObservedState("sysex out");
   log("Sent universal identity request: f0 7e 7f 06 01 f7");
 }
 
@@ -569,6 +660,7 @@ async function autoLoadProjectData() {
   if (state.projectLoadInFlight || !state.sysex || !state.output || !state.settings.allowReadProbes) return;
   state.projectLoadInFlight = true;
   try {
+    setObservedState("reading project");
     log("Auto project load started.");
     sendUniversalIdentity();
     await sendTeEchoProbe();
@@ -590,6 +682,8 @@ async function autoLoadProjectData() {
     if (state.settings.recursiveScanDepth > 1) {
       await scanDeviceTree();
     }
+    state.activity.sysex = "project metadata read";
+    setObservedState("project ready");
     log("Auto project load complete.");
   } finally {
     state.projectLoadInFlight = false;
@@ -621,16 +715,26 @@ async function runProbe(label, task) {
   }
   try {
     log(`${label} started.`);
+    state.activity.sysex = `${label} started`;
+    setObservedState("probe running");
     const result = await task();
+    state.activity.sysex = `${label} complete`;
+    setObservedState("probe complete");
     log(`${label} complete.`, result);
   } catch (error) {
+    state.activity.sysex = `${label} failed`;
+    setObservedState("probe failed");
     log(`${label} failed: ${error.message}`);
   }
 }
 
 function onMidiMessage(event) {
   const data = new Uint8Array(event.data);
-  if (data[0] !== 0xf0) recordMidiEvent(data);
+  if (data[0] !== 0xf0) {
+    state.activity.midiIn = describeMidiMessage(data);
+    setObservedState("midi input");
+    recordMidiEvent(data);
+  }
   const identity = parseUniversalIdentity(data);
   if (identity) {
     state.device.id = identity.deviceId;
@@ -639,6 +743,8 @@ function onMidiMessage(event) {
     updateMeta();
     updateButtons();
     log("Universal identity reply parsed.", { deviceId: identity.deviceId, sku: identity.sku, raw: bytesToHex(identity.raw) });
+    state.activity.sysex = `identity ${identity.sku}`;
+    updateActivity();
     return;
   }
 
@@ -658,12 +764,24 @@ function onMidiMessage(event) {
       status: parsed.statusText,
       payloadHex: bytesToHex(parsed.payload)
     });
+    state.activity.sysex = `cmd ${parsed.command} ${parsed.statusText}`;
+    setObservedState("sysex received");
     return;
   }
 
   if (state.settings.logRawMidi) {
     log(`MIDI in: ${bytesToHex(data)}`);
   }
+}
+
+function describeMidiMessage(data) {
+  const status = data[0] & 0xf0;
+  const channel = (data[0] & 0x0f) + 1;
+  if (status === 0x90 && data[2]) return `ch${channel} note ${data[1]} v${data[2]}`;
+  if (status === 0x80 || status === 0x90) return `ch${channel} note off ${data[1]}`;
+  if (status === 0xb0) return `ch${channel} cc ${data[1]}=${data[2] || 0}`;
+  if (status === 0xc0) return `ch${channel} program ${data[1]}`;
+  return bytesToHex(data);
 }
 
 async function handleFiles(files) {
@@ -893,7 +1011,7 @@ function renderProject() {
   </div>`).join("") : "No tracks loaded.";
   els.padList.innerHTML = state.pads.length ? state.pads.map((pad) => `<div class="item">
     <strong>${escapeHtml(pad.group ? `${pad.group} ${pad.pad}` : `Pad ${pad.pad}`)}</strong>
-    <div class="sub">${escapeHtml(pad.song)} Â· ${escapeHtml(pad.soundName || pad.soundId || "-")} Â· ${escapeHtml(pad.mode || "-")}</div>
+    <div class="sub">${escapeHtml(pad.song)} / ${escapeHtml(pad.soundName || pad.soundId || "-")} / ${escapeHtml(pad.mode || "-")}</div>
   </div>`).join("") : "No pads loaded.";
   renderTimeline();
 }
@@ -903,13 +1021,23 @@ function renderPadGrid() {
   els.padGrid.innerHTML = Array.from({ length: 12 }, (_, index) => {
     const padNumber = index + 1;
     const pad = groupPads.find((item) => Number(item.pad) === padNumber || String(item.pad).toUpperCase() === String(padNumber));
+    const note = padNote(padNumber);
+    const shortcut = padShortcut(padNumber);
     const assigned = pad ? " assigned" : "";
     const label = pad ? pad.soundName || pad.soundId || "Assigned" : "Empty";
-    return `<button class="pad-cell${assigned}" type="button" data-pad="${padNumber}" data-sound-id="${escapeHtml(pad ? pad.soundId : "")}" title="${escapeHtml(label)}">
-      <span>${state.activeGroup}${padNumber}</span>
+    return `<button class="pad-cell${assigned}" type="button" data-pad="${padNumber}" data-note="${note}" data-sound-id="${escapeHtml(pad ? pad.soundId : "")}" title="${escapeHtml(label)}">
+      <span>${state.activeGroup}${padNumber} · ${shortcut} · n${note}</span>
       <strong>${escapeHtml(label)}</strong>
     </button>`;
   }).join("");
+}
+
+function padNote(padNumber) {
+  return Math.max(0, Math.min(127, state.settings.performanceBaseNote + padNumber - 1));
+}
+
+function padShortcut(padNumber) {
+  return ["1", "2", "3", "4", "q", "w", "e", "r", "a", "s", "d", "f"][padNumber - 1] || "";
 }
 
 function playCurrentSample(offset = null) {
@@ -934,9 +1062,94 @@ function playCurrentSample(offset = null) {
   state.transport.label = sample.name;
   state.transport.source = source;
   recordTimelineEvent("audio", sample.name, startOffset, sample.buffer.duration - startOffset, sample.id);
+  setObservedState("local preview");
   log(`Playback started: ${sample.name} @ ${seconds(startOffset)}.`);
   startTimelineLoop();
   updateButtons();
+}
+
+function playSampleById(sampleId, offset = 0) {
+  const sample = state.samples.find((item) => String(item.id) === String(sampleId));
+  if (!sample?.buffer) return false;
+  state.selected.clear();
+  state.selected.add(sample.id);
+  state.activeBank = sampleBank(sample);
+  playCurrentSample(offset);
+  renderLibrary();
+  return true;
+}
+
+function triggerPad(padNumber, mode = state.settings.performanceMode) {
+  const groupPads = state.pads.filter((pad) => String(pad.group || "").toUpperCase() === state.activeGroup);
+  const pad = groupPads.find((item) => Number(item.pad) === Number(padNumber) || String(item.pad).toUpperCase() === String(padNumber));
+  const label = `${state.activeGroup}${padNumber}`;
+  const shouldLocal = mode === "local" || mode === "both";
+  const shouldMidi = mode === "midi" || mode === "both";
+  if (shouldLocal && pad?.soundId && !playSampleById(pad.soundId, 0)) {
+    log(`${label}: no local audio buffer for assigned sample ${pad.soundId}.`);
+  }
+  if (shouldMidi) sendPadNote(padNumber, pad?.soundName || pad?.soundId || label);
+  if (!shouldLocal && !shouldMidi) log(`${label}: no trigger mode selected.`);
+}
+
+function sendPadNote(padNumber, label = "") {
+  if (!state.output) {
+    log("MIDI trigger blocked: no MIDI output selected.");
+    return;
+  }
+  const note = padNote(Number(padNumber));
+  const channel = Math.max(1, Math.min(16, state.settings.performanceChannel));
+  const status = 0x90 | (channel - 1);
+  const velocity = Math.max(1, Math.min(127, state.settings.performanceVelocity));
+  state.output.send([status, note, velocity]);
+  state.activity.midiOut = `ch${channel} note ${note} v${velocity}`;
+  const key = `${channel}:${note}`;
+  state.transport.heldNotes.set(key, { channel, note });
+  recordTimelineEvent("midi-out", `out ${label || note}`, transportCurrentTime(), 0.35);
+  setObservedState("midi output");
+  log(`MIDI out: ch${channel} note ${note} velocity ${velocity}${label ? ` (${label})` : ""}.`);
+  if (!state.settings.performanceHold) {
+    window.setTimeout(() => sendNoteOff(channel, note), state.settings.performanceGateMs);
+  }
+}
+
+function sendNoteOff(channel, note) {
+  if (!state.output) return;
+  const key = `${channel}:${note}`;
+  state.output.send([0x80 | (channel - 1), note, 0]);
+  state.activity.midiOut = `ch${channel} off ${note}`;
+  state.transport.heldNotes.delete(key);
+  updateActivity();
+}
+
+function panicMidi() {
+  if (!state.output) {
+    log("Panic skipped: no MIDI output selected.");
+    return;
+  }
+  state.transport.heldNotes.forEach(({ channel, note }) => sendNoteOff(channel, note));
+  for (let channel = 1; channel <= 16; channel += 1) {
+    state.output.send([0xb0 | (channel - 1), 123, 0]);
+    state.output.send([0xb0 | (channel - 1), 120, 0]);
+  }
+  state.transport.heldNotes.clear();
+  state.activity.midiOut = "panic all notes off";
+  recordTimelineEvent("midi-out", "panic", transportCurrentTime(), 0.5);
+  setObservedState("panic sent");
+  log("MIDI panic sent: note-offs and all-notes-off on channels 1-16.");
+}
+
+function sendClock(message, label) {
+  if (!state.output) {
+    log(`${label} blocked: no MIDI output selected.`);
+    return;
+  }
+  state.output.send([message]);
+  state.activity.clock = label;
+  state.activity.midiOut = `clock ${label}`;
+  recordTimelineEvent("midi-out", label, transportCurrentTime(), 0.25);
+  setObservedState("clock out");
+  log(`MIDI clock: ${label}.`);
 }
 
 function stopTransport(reset = true) {
@@ -955,6 +1168,7 @@ function stopTransport(reset = true) {
   }
   state.transport.playing = false;
   state.transport.source = null;
+  if (reset) setObservedState("idle");
   cancelAnimationFrame(state.transport.frame);
   renderTimeline();
   updateButtons();
@@ -1035,13 +1249,13 @@ function arrangementClipHtml(total) {
 function midiEventHtml(total) {
   const now = transportCurrentTime();
   return state.transport.events
-    .filter((event) => event.type === "midi" && event.start >= Math.max(0, now - total) && event.start <= total)
+    .filter((event) => (event.type === "midi" || event.type === "midi-out") && event.start >= Math.max(0, now - total) && event.start <= total)
     .map((event) => timelineClipHtml({
       label: event.label,
       start: event.start,
       duration: event.duration,
       total,
-      className: " midi"
+      className: event.type === "midi-out" ? " midi out" : " midi"
     }))
     .join("");
 }
@@ -1081,6 +1295,49 @@ function seekTimeline(event) {
     renderTimeline();
     updateButtons();
   }
+}
+
+function showPadContextMenu(event, button) {
+  event.preventDefault();
+  const padNumber = button.dataset.pad;
+  els.padContextMenu.dataset.pad = padNumber;
+  els.padContextMenu.style.left = `${event.clientX}px`;
+  els.padContextMenu.style.top = `${event.clientY}px`;
+  els.padContextMenu.hidden = false;
+}
+
+function hidePadContextMenu() {
+  els.padContextMenu.hidden = true;
+  delete els.padContextMenu.dataset.pad;
+}
+
+function runPadContextAction(action) {
+  const padNumber = Number(els.padContextMenu.dataset.pad || 0);
+  if (!padNumber) return;
+  const button = els.padGrid.querySelector(`[data-pad="${padNumber}"]`);
+  if (action === "panic") panicMidi();
+  else if (action === "select" && button?.dataset.soundId) {
+    const sample = state.samples.find((item) => String(item.id) === String(button.dataset.soundId));
+    if (sample) {
+      state.selected.clear();
+      state.selected.add(sample.id);
+      state.activeBank = sampleBank(sample);
+      renderLibrary();
+    }
+  } else {
+    triggerPad(padNumber, action);
+  }
+  hidePadContextMenu();
+}
+
+function onPerformanceKeydown(event) {
+  if (!state.settings.performanceKeyboard || event.repeat) return;
+  if (/input|textarea|select/i.test(event.target.tagName)) return;
+  const keyMap = ["1", "2", "3", "4", "q", "w", "e", "r", "a", "s", "d", "f"];
+  const index = keyMap.indexOf(event.key.toLowerCase());
+  if (index < 0) return;
+  event.preventDefault();
+  triggerPad(index + 1);
 }
 
 function formatTimelineTime(value) {
@@ -1238,6 +1495,7 @@ function syncSettingsForm() {
   els.settingPcmSampleRate.value = state.settings.pcmSampleRate;
   els.settingPcmChannels.value = state.settings.pcmChannels;
   els.settingPcmBitDepth.value = state.settings.pcmBitDepth;
+  syncPerformanceControls();
 }
 
 function readSettingsForm() {
@@ -1257,7 +1515,14 @@ function readSettingsForm() {
     recursiveScanDepth: clampNumber(els.settingScanDepth.value, 1, 10, defaultSettings.recursiveScanDepth),
     pcmSampleRate: clampNumber(els.settingPcmSampleRate.value, 8000, 192000, defaultSettings.pcmSampleRate),
     pcmChannels: clampNumber(els.settingPcmChannels.value, 1, 2, defaultSettings.pcmChannels),
-    pcmBitDepth: clampNumber(els.settingPcmBitDepth.value, 8, 32, defaultSettings.pcmBitDepth)
+    pcmBitDepth: clampNumber(els.settingPcmBitDepth.value, 8, 32, defaultSettings.pcmBitDepth),
+    performanceMode: ["local", "midi", "both"].includes(els.performanceModeSelect.value) ? els.performanceModeSelect.value : defaultSettings.performanceMode,
+    performanceChannel: clampNumber(els.performanceChannelSelect.value, 1, 16, defaultSettings.performanceChannel),
+    performanceBaseNote: clampNumber(els.performanceBaseNote.value, 0, 127, defaultSettings.performanceBaseNote),
+    performanceVelocity: clampNumber(els.performanceVelocity.value, 1, 127, defaultSettings.performanceVelocity),
+    performanceGateMs: clampNumber(els.performanceGateMs.value, 20, 5000, defaultSettings.performanceGateMs),
+    performanceHold: els.performanceHold.checked,
+    performanceKeyboard: els.performanceKeyboard.checked
   };
   syncSettingsForm();
   configureClient();
@@ -1317,13 +1582,26 @@ els.diagnoseMidiBtn.addEventListener("click", diagnoseMidi);
   els.settingScanDepth,
   els.settingPcmSampleRate,
   els.settingPcmChannels,
-  els.settingPcmBitDepth
+  els.settingPcmBitDepth,
+  els.performanceModeSelect,
+  els.performanceChannelSelect,
+  els.performanceBaseNote,
+  els.performanceVelocity,
+  els.performanceGateMs,
+  els.performanceHold,
+  els.performanceKeyboard
 ].forEach((control) => control.addEventListener("change", readSettingsForm));
+els.performanceVelocity.addEventListener("input", readSettingsForm);
 els.exportSettingsBtn.addEventListener("click", exportSettings);
 els.resetSettingsBtn.addEventListener("click", resetSettings);
 els.playSelectedBtn.addEventListener("click", () => playCurrentSample());
 els.stopTimelineBtn.addEventListener("click", () => stopTransport(true));
 els.timelineViewport.addEventListener("click", seekTimeline);
+els.panicBtn.addEventListener("click", panicMidi);
+els.clockStartBtn.addEventListener("click", () => sendClock(0xfa, "start"));
+els.clockContinueBtn.addEventListener("click", () => sendClock(0xfb, "continue"));
+els.clockTickBtn.addEventListener("click", () => sendClock(0xf8, "tick"));
+els.clockStopBtn.addEventListener("click", () => sendClock(0xfc, "stop"));
 els.midiInSelect.addEventListener("change", selectPorts);
 els.midiOutSelect.addEventListener("change", selectPorts);
 els.identityBtn.addEventListener("click", sendUniversalIdentity);
@@ -1357,19 +1635,23 @@ els.activeGroupSelect.addEventListener("change", () => {
 });
 els.padGrid.addEventListener("click", (event) => {
   const button = event.target.closest(".pad-cell");
-  if (!button || !button.dataset.soundId) return;
-  const sample = state.samples.find((item) => String(item.id) === String(button.dataset.soundId));
-  if (!sample) {
-    log(`Pad ${state.activeGroup}${button.dataset.pad}: assigned sample ${button.dataset.soundId} is not in the local manifest.`);
-    return;
-  }
-  state.activeBank = sampleBank(sample);
-  state.selected.clear();
-  state.selected.add(sample.id);
-  els.searchInput.value = "";
-  renderLibrary();
-  log(`Pad ${state.activeGroup}${button.dataset.pad}: selected sample ${sample.name}.`);
+  if (!button) return;
+  triggerPad(Number(button.dataset.pad));
 });
+els.padGrid.addEventListener("contextmenu", (event) => {
+  const button = event.target.closest(".pad-cell");
+  if (!button) return;
+  showPadContextMenu(event, button);
+});
+els.padContextMenu.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  runPadContextAction(button.dataset.action);
+});
+document.addEventListener("click", (event) => {
+  if (!els.padContextMenu.hidden && !event.target.closest("#padContextMenu")) hidePadContextMenu();
+});
+document.addEventListener("keydown", onPerformanceKeydown);
 els.clearLogBtn.addEventListener("click", () => els.log.textContent = "Log cleared.");
 els.exportLogBtn.addEventListener("click", exportProtocolLog);
 els.clearTreeBtn.addEventListener("click", () => {
@@ -1432,6 +1714,7 @@ els.dropZone.addEventListener("drop", (event) => {
 });
 
 syncSettingsForm();
+renderPerformanceControls();
 updateMeta();
 renderLibrary();
 renderProject();

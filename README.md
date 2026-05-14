@@ -17,6 +17,9 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Adds an interactable live timeline for local sample playback, imported project clips, and incoming MIDI activity.
 - Imports raw `.pcm` and `.raw` files using configurable sample rate, channels, and bit depth, converting them to playable browser audio.
 - Can auto-load read-only project metadata after MIDI/SysEx connection instead of requiring each probe button to be pressed manually.
+- Adds live performance controls: configurable trigger mode, MIDI channel, base note, velocity, gate, hold, keyboard shortcuts, pad context menu, MIDI panic, and MIDI clock messages.
+- Reworks the GUI into a conventional DAW-style control surface with a Matrix-inspired green-on-black visual system and session log.
+- Adds a live KO II monitor for browser-observable MIDI input, MIDI output, SysEx/file probe state, held notes, clock, and local preview state.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.

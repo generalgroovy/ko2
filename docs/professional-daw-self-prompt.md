@@ -31,6 +31,10 @@ Make the first screen feel like a compact DAW hardware editor, not a lab noteboo
 - Real-time, interactable left-to-right timeline for local sample playback, imported project clips, and browser-observable MIDI input events.
 - Raw PCM import/playback with configurable sample rate, channels, and bit depth.
 - Automatic read-only project loading after MIDI/SysEx connection, while preserving manual probe buttons for recovery.
+- Live performance controls for local preview, MIDI trigger, or both, with channel/base-note/velocity/gate/hold options.
+- Pad context menu, keyboard shortcuts, MIDI panic, and MIDI clock controls for performance sessions.
+- Matrix-style visual language and session log for high-contrast performance monitoring.
+- Live monitor cards for observed state, MIDI input, MIDI output, SysEx/file probe status, held notes, and clock state.
 - Local sample versus cached device tree comparison by normalized filename and byte size.
 - Project view for scenes, tracks, clips, pads, and sample references from imported metadata.
 - Future verified sample backup using read-only file GET after device paths are confirmed.

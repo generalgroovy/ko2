@@ -13,7 +13,7 @@
       <div>
         <p class="eyebrow">EP / KO II</p>
         <h1>DAW Control</h1>
-        <p class="lede">USB MIDI control, sample library, project view, and read-only protocol tools.</p>
+        <p class="lede">Live USB MIDI performance, project view, sample pool, and read-only protocol monitor.</p>
       </div>
       <div class="status-stack">
         <div class="pill" id="connectionBadge"><span class="dot"></span><span>Not connected</span></div>
@@ -21,12 +21,12 @@
       </div>
     </header>
 
-    <section class="notice">Read mode armed. Write commands remain blocked until verified on hardware.</section>
+    <section class="notice">Live monitor shows browser-observable KO II MIDI, SysEx, project-read, and local preview activity. Write commands remain blocked until verified on hardware.</section>
 
     <section class="layout">
       <aside class="panel stack inspector">
-        <section class="section stack">
-          <h2>MIDI I/O</h2>
+        <details class="section stack fold" open>
+          <summary>MIDI I/O</summary>
           <button id="connectBtn" class="primary" type="button" title="Register MIDI ports first, then request SysEx access.">Connect MIDI</button>
           <button id="refreshPortsBtn" type="button" disabled title="Refresh browser MIDI inputs and outputs.">Refresh ports</button>
           <button id="diagnoseMidiBtn" type="button" title="Log browser MIDI support, origin state, and visible ports.">Diagnose MIDI</button>
@@ -38,10 +38,53 @@
             MIDI output
             <select id="midiOutSelect" disabled><option>No MIDI output</option></select>
           </label>
-        </section>
+        </details>
 
-        <section class="section stack">
-          <h2>Runtime</h2>
+        <details class="section stack fold" open>
+          <summary>Performance</summary>
+          <label>
+            Trigger mode
+            <select id="performanceModeSelect" title="Choose whether pad triggers play local audio, send MIDI to KO II, or both.">
+              <option value="both">Local + MIDI</option>
+              <option value="midi">MIDI only</option>
+              <option value="local">Local only</option>
+            </select>
+          </label>
+          <label>
+            MIDI channel
+            <select id="performanceChannelSelect" title="MIDI channel for outgoing performance notes."></select>
+          </label>
+          <label>
+            Base note
+            <input id="performanceBaseNote" type="number" min="0" max="127" value="36" title="First pad note. Pads increment from this note.">
+          </label>
+          <label>
+            Velocity <strong id="performanceVelocityValue">100</strong>
+            <input id="performanceVelocity" type="range" min="1" max="127" value="100" title="Velocity for outgoing performance notes.">
+          </label>
+          <label>
+            Gate ms
+            <input id="performanceGateMs" type="number" min="20" max="5000" step="10" value="180" title="Note length for non-held outgoing pad triggers.">
+          </label>
+          <label class="check-row">
+            <input id="performanceHold" type="checkbox">
+            <span>Hold notes until panic/stop</span>
+          </label>
+          <label class="check-row">
+            <input id="performanceKeyboard" type="checkbox" checked>
+            <span>Computer keyboard triggers pads</span>
+          </label>
+          <div class="row">
+            <button id="panicBtn" type="button" title="Send note-off and all-notes-off messages on every channel.">Panic</button>
+            <button id="clockStartBtn" type="button" title="Send MIDI clock start.">Clock start</button>
+            <button id="clockContinueBtn" type="button" title="Send MIDI clock continue.">Continue</button>
+            <button id="clockTickBtn" type="button" title="Send one MIDI timing clock tick.">Tick</button>
+            <button id="clockStopBtn" type="button" title="Send MIDI clock stop.">Clock stop</button>
+          </div>
+        </details>
+
+        <details class="section stack fold">
+          <summary>Runtime</summary>
           <label class="check-row">
             <input id="settingRequestSysex" type="checkbox" checked>
             <span>Request SysEx privilege</span>
@@ -111,10 +154,10 @@
             <button id="resetSettingsBtn" type="button" title="Restore default runtime settings.">Reset</button>
           </div>
           <p class="hint">Browser MIDI and SysEx privileges still require the browser permission prompt.</p>
-        </section>
+        </details>
 
-        <section class="section stack">
-          <h2>Device Probes</h2>
+        <details class="section stack fold">
+          <summary>Device Probes</summary>
           <button id="identityBtn" type="button" disabled title="Send the standard MIDI identity request.">Identity</button>
           <button id="teEchoBtn" type="button" disabled title="Send a TE echo SysEx request and log the response.">TE echo</button>
           <button id="fileInitBtn" type="button" disabled title="Initialize the inferred TE file protocol and read chunk size.">File init</button>
@@ -124,10 +167,10 @@
           <button id="listProjectsBtn" type="button" disabled title="List the /projects folder when present in the device tree.">List projects</button>
           <button id="readSoundsMetaBtn" type="button" disabled title="Read /sounds metadata if the folder is known.">Sounds metadata</button>
           <button id="readProjectsMetaBtn" type="button" disabled title="Read /projects metadata if the folder is known.">Projects metadata</button>
-        </section>
+        </details>
 
-        <section class="section stack">
-          <h2>Sample Import</h2>
+        <details class="section stack fold" open>
+          <summary>Sample Import</summary>
           <label class="drop" id="dropZone">
             <input id="fileInput" type="file" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.pcm,.raw,.json">
             <span>Drop audio, PCM, or manifest JSON</span>
@@ -138,17 +181,17 @@
             <button id="downloadAllBtn" type="button" disabled title="Download every local audio buffer as WAV. Missing hardware buffers are skipped.">Download all WAV</button>
             <button id="downloadSelectedBtn" type="button" disabled title="Download selected local audio buffers as WAV. Missing hardware buffers are skipped.">Download selected</button>
           </div>
-        </section>
+        </details>
 
-        <section class="section stack">
-          <h2>Write Surface</h2>
+        <details class="section stack fold">
+          <summary>Write Surface</summary>
           <button id="uploadSampleBtn" type="button" disabled title="Requires write privilege unlock and verified transfer implementation.">Upload sample</button>
           <button id="deleteSampleBtn" type="button" disabled title="Requires write privilege unlock and verified delete command.">Delete sample</button>
           <button id="moveFileBtn" type="button" disabled title="Requires write privilege unlock and verified move command.">Move file</button>
           <button id="writeMetadataBtn" type="button" disabled title="Requires write privilege unlock and verified metadata command.">Write metadata</button>
           <button id="devicePlaybackBtn" type="button" disabled title="Requires write privilege unlock and validated playback command.">Device playback</button>
           <button id="backupRestoreBtn" type="button" disabled title="Requires write privilege unlock and verified project archive behavior.">Backup / restore</button>
-        </section>
+        </details>
       </aside>
 
       <section class="main daw-workspace">
@@ -156,8 +199,9 @@
           <div class="section-header">
             <h2>Transport / Device</h2>
             <div class="transport-actions">
-              <span>Session</span>
-              <strong>KO II</strong>
+              <button id="miniPanicBtn" type="button" title="Send all-notes-off and held-note note-offs.">Panic</button>
+              <button id="miniClockStartBtn" type="button" title="Send MIDI clock start.">Start</button>
+              <button id="miniClockStopBtn" type="button" title="Send MIDI clock stop.">Stop</button>
             </div>
           </div>
           <div class="meta-grid">
@@ -170,6 +214,14 @@
             <div><span>File chunk</span><strong id="metaChunk">-</strong></div>
             <div><span>SysEx</span><strong id="metaSysex">-</strong></div>
             <div><span>Privileges</span><strong id="metaPrivileges">-</strong></div>
+          </div>
+          <div class="activity-grid">
+            <div class="activity-card live"><span>Observed State</span><strong id="activityState">idle</strong></div>
+            <div class="activity-card"><span>MIDI In</span><strong id="activityMidiIn">-</strong></div>
+            <div class="activity-card"><span>MIDI Out</span><strong id="activityMidiOut">-</strong></div>
+            <div class="activity-card"><span>SysEx / File</span><strong id="activitySysex">-</strong></div>
+            <div class="activity-card"><span>Held Notes</span><strong id="activityNotes">0</strong></div>
+            <div class="activity-card"><span>Clock</span><strong id="activityClock">stopped</strong></div>
           </div>
         </section>
 
@@ -241,6 +293,13 @@
             </div>
           </div>
           <div id="padGrid" class="pad-grid" aria-label="KO II pad assignment grid"></div>
+          <div id="padContextMenu" class="context-menu" hidden>
+            <button type="button" data-action="both">Play local + MIDI</button>
+            <button type="button" data-action="midi">Trigger MIDI</button>
+            <button type="button" data-action="local">Play local</button>
+            <button type="button" data-action="select">Select sample</button>
+            <button type="button" data-action="panic">Panic</button>
+          </div>
           <div class="project-grid">
             <div>
               <h3>Scenes</h3>
