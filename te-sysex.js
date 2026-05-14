@@ -216,6 +216,44 @@ function buildFileListPayload(nodeId = 0, page = 0) {
   return bytes;
 }
 
+function buildFileInfoPayload(nodeId = 0) {
+  const bytes = new Uint8Array(3);
+  const view = new DataView(bytes.buffer);
+  view.setUint8(0, TE_FILE.INFO);
+  view.setUint16(1, nodeId);
+  return bytes;
+}
+
+function buildFileMetadataGetPayload(nodeId = 0, page = 0, key = "") {
+  const keyBytes = key ? stringToBytes(key) : new Uint8Array(0);
+  const bytes = new Uint8Array(6 + (keyBytes.length ? keyBytes.length + 1 : 0));
+  const view = new DataView(bytes.buffer);
+  view.setUint8(0, TE_FILE.METADATA);
+  view.setUint8(1, TE_FILE.METADATA_GET);
+  view.setUint16(2, nodeId);
+  view.setUint16(4, page);
+  if (keyBytes.length) {
+    bytes.set(keyBytes, 6);
+    bytes[bytes.length - 1] = 0;
+  }
+  return bytes;
+}
+
+function parseJsonMetadataPayload(payload) {
+  if (payload.length <= 2) return { page: 0, done: true, metadata: {} };
+  const page = (payload[0] << 8) | payload[1];
+  const raw = payload.subarray(2);
+  const nul = raw.indexOf(0);
+  const text = bytesToString(nul >= 0 ? raw.subarray(0, nul) : raw);
+  let metadata = {};
+  try {
+    metadata = text ? JSON.parse(text) : {};
+  } catch (error) {
+    metadata = { parseError: error.message, raw: text };
+  }
+  return { page, done: nul >= 0, metadata, raw: text };
+}
+
 function parseFileListResponse(payload) {
   if (payload.length <= 2) return { page: 0, entries: [] };
   const page = (payload[0] << 8) | payload[1];
@@ -370,10 +408,13 @@ window.KO2Sysex = {
   FSEntry,
   TeSysexClient,
   buildFileInitPayload,
+  buildFileInfoPayload,
   buildFileListPayload,
+  buildFileMetadataGetPayload,
   bytesToHex,
   bytesToString,
   parseFileInitResponse,
+  parseJsonMetadataPayload,
   parseFileListResponse,
   parseTeMetadataString,
   parseUniversalIdentity,

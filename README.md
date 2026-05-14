@@ -16,10 +16,16 @@ This project is intentionally conservative. It implements Web MIDI connection, l
   - Universal identity
   - TE echo
   - TE file protocol init
+  - Root node info
   - TE root folder list, after init
+  - `/sounds` and `/projects` list probes, after those folders are discovered
+  - `/sounds` and `/projects` metadata probes
 - Imports local audio files in the browser.
 - Renders waveform previews from decoded audio.
 - Exports selected local samples as WAV.
+- Downloads all available local audio buffers as WAV without creating placeholder text files for missing hardware buffers.
+- Shows imported manifest samples, tracks, scenes, and clip-to-sample references.
+- Shows cached read-only device tree results.
 - Exports a local JSON manifest.
 
 ## Safety

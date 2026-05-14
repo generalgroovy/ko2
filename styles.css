@@ -60,6 +60,7 @@ label {
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 8px; font-size: 2rem; letter-spacing: 0; }
 h2 { margin-bottom: 12px; font-size: 1rem; }
+h3 { margin: 0 0 8px; font-size: .92rem; color: var(--muted); }
 
 .app {
   width: min(1440px, 100%);
@@ -119,7 +120,7 @@ h2 { margin-bottom: 12px; font-size: 1rem; }
 .dot.err { background: var(--bad); }
 
 .notice {
-  border: 1px solid rgba(244, 211, 78, .45);
+  border: 1px solid rgba(244, 211, 78, .36);
   border-radius: 8px;
   background: rgba(244, 211, 78, .1);
   padding: 12px 14px;
@@ -189,6 +190,39 @@ h2 { margin-bottom: 12px; font-size: 1rem; }
   gap: 10px;
 }
 
+.project-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #12161c;
+  padding: 10px;
+}
+
+.item .sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.35;
+}
+
+.action-ok {
+  color: var(--ok);
+}
+
+.action-locked {
+  color: var(--warn);
+}
+
 .meta-grid > div {
   display: grid;
   gap: 4px;
@@ -214,7 +248,7 @@ h2 { margin-bottom: 12px; font-size: 1rem; }
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 840px;
+  min-width: 980px;
 }
 
 th, td {
@@ -262,9 +296,15 @@ th {
 
 .mono { font-family: var(--mono); }
 
+audio {
+  width: 180px;
+  height: 32px;
+}
+
 @media (max-width: 860px) {
   .topbar, .layout { grid-template-columns: 1fr; }
   .status-stack { justify-content: flex-start; }
   .meta-grid { grid-template-columns: 1fr; }
+  .project-grid { grid-template-columns: 1fr; }
   .section-header { align-items: stretch; flex-direction: column; }
 }

@@ -20,6 +20,7 @@ async function decodeAudioFile(file, state) {
     sampleRate: buffer.sampleRate,
     channels: buffer.numberOfChannels,
     buffer,
+    objectUrl: URL.createObjectURL(file),
     waveform: makeWaveform(buffer, 32)
   };
 }

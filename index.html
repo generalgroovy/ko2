@@ -21,16 +21,13 @@
       </div>
     </header>
 
-    <section class="notice">
-      <strong>Safety model:</strong>
-      read-only MIDI and SysEx probes are enabled. Upload, delete, move, metadata-write, and device playback commands are blocked unless code explicitly enables the write gate.
-    </section>
+    <section class="notice">Read-only probes are enabled. Write actions are locked.</section>
 
     <section class="layout">
       <aside class="panel stack">
         <section class="section stack">
           <h2>Connection</h2>
-          <button id="connectBtn" class="primary" type="button">Connect MIDI</button>
+          <button id="connectBtn" class="primary" type="button" title="Request Web MIDI access with SysEx permission.">Connect MIDI</button>
           <label>
             MIDI input
             <select id="midiInSelect" disabled><option>No MIDI input</option></select>
@@ -43,11 +40,15 @@
 
         <section class="section stack">
           <h2>Read-Only Probes</h2>
-          <button id="identityBtn" type="button" disabled>Universal identity</button>
-          <button id="teEchoBtn" type="button" disabled>TE echo probe</button>
-          <button id="fileInitBtn" type="button" disabled>File protocol init</button>
-          <button id="listRootBtn" type="button" disabled>List root folder</button>
-          <p class="hint">TE probes use inferred protocol details from the official EP Sample Tool bundle and need real hardware validation.</p>
+          <button id="identityBtn" type="button" disabled title="Send the standard MIDI identity request.">Identity</button>
+          <button id="teEchoBtn" type="button" disabled title="Send a TE echo SysEx request and log the response.">TE echo</button>
+          <button id="fileInitBtn" type="button" disabled title="Initialize the inferred TE file protocol and read chunk size.">File init</button>
+          <button id="rootInfoBtn" type="button" disabled title="Read root node info after file init succeeds.">Root info</button>
+          <button id="listRootBtn" type="button" disabled title="List the root folder after file init succeeds.">List root</button>
+          <button id="listSoundsBtn" type="button" disabled title="List the /sounds folder when present in the device tree.">List sounds</button>
+          <button id="listProjectsBtn" type="button" disabled title="List the /projects folder when present in the device tree.">List projects</button>
+          <button id="readSoundsMetaBtn" type="button" disabled title="Read /sounds metadata if the folder is known.">Sounds metadata</button>
+          <button id="readProjectsMetaBtn" type="button" disabled title="Read /projects metadata if the folder is known.">Projects metadata</button>
         </section>
 
         <section class="section stack">
@@ -57,9 +58,20 @@
             <span>Drop audio or manifest JSON</span>
           </label>
           <div class="row">
-            <button id="exportManifestBtn" type="button" disabled>Export manifest</button>
-            <button id="downloadSelectedBtn" type="button" disabled>Download selected</button>
+            <button id="exportManifestBtn" type="button" disabled title="Export local samples and imported project data as JSON.">Export manifest</button>
+            <button id="downloadAllBtn" type="button" disabled title="Download every local audio buffer as WAV. Missing hardware buffers are skipped.">Download all WAV</button>
+            <button id="downloadSelectedBtn" type="button" disabled title="Download selected local audio buffers as WAV. Missing hardware buffers are skipped.">Download selected</button>
           </div>
+        </section>
+
+        <section class="section stack">
+          <h2>Locked Actions</h2>
+          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Upload sample</button>
+          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Delete sample</button>
+          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Move file</button>
+          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Write metadata</button>
+          <button type="button" disabled title="Blocked until playback behavior is validated on hardware.">Device playback</button>
+          <button type="button" disabled title="Blocked until project archive behavior is validated on hardware.">Backup / restore</button>
         </section>
       </aside>
 
@@ -78,11 +90,11 @@
 
         <section class="panel section">
           <div class="section-header">
-            <h2>Local Library</h2>
+            <h2>Samples</h2>
             <div class="row">
               <input id="searchInput" type="search" placeholder="Filter samples">
-              <button id="selectAllBtn" type="button" disabled>Select all</button>
-              <button id="clearSelectionBtn" type="button" disabled>Clear</button>
+              <button id="selectAllBtn" type="button" disabled title="Select all visible samples.">Select all</button>
+              <button id="clearSelectionBtn" type="button" disabled title="Clear sample selection.">Clear</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -96,11 +108,12 @@
                   <th>Rate</th>
                   <th>Size</th>
                   <th>Wave</th>
+                  <th>Audio</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody id="libraryRows">
-                <tr><td colspan="8" class="muted">Load local audio or a JSON manifest to build a library.</td></tr>
+                <tr><td colspan="9" class="muted">Load local audio or a JSON manifest to build a library.</td></tr>
               </tbody>
             </table>
           </div>
@@ -108,8 +121,37 @@
 
         <section class="panel section">
           <div class="section-header">
+            <h2>Tracks & Scenes</h2>
+          </div>
+          <div class="project-grid">
+            <div>
+              <h3>Scenes</h3>
+              <div id="sceneList" class="item-list muted">No scenes loaded.</div>
+            </div>
+            <div>
+              <h3>Tracks</h3>
+              <div id="trackList" class="item-list muted">No tracks loaded.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-header">
+            <h2>Device Tree</h2>
+            <button id="clearTreeBtn" type="button" title="Clear cached read-only device tree results.">Clear tree</button>
+          </div>
+          <div id="deviceTree" class="item-list muted">No device folders read.</div>
+        </section>
+
+        <section class="panel section">
+          <h2>Further Interaction Proposals</h2>
+          <div id="proposalList" class="item-list"></div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-header">
             <h2>Protocol Log</h2>
-            <button id="clearLogBtn" type="button">Clear</button>
+            <button id="clearLogBtn" type="button" title="Clear the protocol log.">Clear</button>
           </div>
           <pre id="log" class="log">KO II Web MIDI Lab ready.</pre>
         </section>

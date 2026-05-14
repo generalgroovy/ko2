@@ -3,11 +3,14 @@ const {
   TE_SYSEX,
   TeSysexClient,
   buildFileInitPayload,
+  buildFileInfoPayload,
   buildFileListPayload,
+  buildFileMetadataGetPayload,
   bytesToHex,
   bytesToString,
   parseFileInitResponse,
   parseFileListResponse,
+  parseJsonMetadataPayload,
   parseTeMetadataString,
   parseUniversalIdentity,
   selfTestPacking,
@@ -37,6 +40,10 @@ const state = {
     fileChunkSize: null
   },
   samples: [],
+  tracks: [],
+  scenes: [],
+  deviceNodesByPath: new Map(),
+  deviceTree: [],
   selected: new Set(),
   audioContext: null
 };
@@ -51,10 +58,16 @@ const els = {
   identityBtn: $("identityBtn"),
   teEchoBtn: $("teEchoBtn"),
   fileInitBtn: $("fileInitBtn"),
+  rootInfoBtn: $("rootInfoBtn"),
   listRootBtn: $("listRootBtn"),
+  listSoundsBtn: $("listSoundsBtn"),
+  listProjectsBtn: $("listProjectsBtn"),
+  readSoundsMetaBtn: $("readSoundsMetaBtn"),
+  readProjectsMetaBtn: $("readProjectsMetaBtn"),
   dropZone: $("dropZone"),
   fileInput: $("fileInput"),
   exportManifestBtn: $("exportManifestBtn"),
+  downloadAllBtn: $("downloadAllBtn"),
   downloadSelectedBtn: $("downloadSelectedBtn"),
   searchInput: $("searchInput"),
   selectAllBtn: $("selectAllBtn"),
@@ -62,6 +75,11 @@ const els = {
   masterCheckbox: $("masterCheckbox"),
   libraryRows: $("libraryRows"),
   clearLogBtn: $("clearLogBtn"),
+  clearTreeBtn: $("clearTreeBtn"),
+  sceneList: $("sceneList"),
+  trackList: $("trackList"),
+  deviceTree: $("deviceTree"),
+  proposalList: $("proposalList"),
   log: $("log"),
   metaInput: $("metaInput"),
   metaOutput: $("metaOutput"),
@@ -109,15 +127,25 @@ function updateButtons() {
   els.identityBtn.disabled = !state.output;
   els.teEchoBtn.disabled = !hasPair;
   els.fileInitBtn.disabled = !hasPair;
+  els.rootInfoBtn.disabled = !hasPair || !state.device.fileChunkSize;
   els.listRootBtn.disabled = !hasPair || !state.device.fileChunkSize;
+  els.listSoundsBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/sounds");
+  els.listProjectsBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/projects");
+  els.readSoundsMetaBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/sounds");
+  els.readProjectsMetaBtn.disabled = !hasPair || !state.deviceNodesByPath.has("/projects");
   els.exportManifestBtn.disabled = !state.samples.length;
-  els.downloadSelectedBtn.disabled = !state.selected.size;
+  els.downloadAllBtn.disabled = !state.samples.some((sample) => sample.buffer);
+  els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
   els.selectAllBtn.disabled = !filteredSamples().length;
   els.clearSelectionBtn.disabled = !state.selected.size;
   const visible = filteredSamples().map((sample) => sample.id);
   const selectedVisible = visible.filter((id) => state.selected.has(id)).length;
   els.masterCheckbox.checked = visible.length > 0 && selectedVisible === visible.length;
   els.masterCheckbox.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+}
+
+function selectedBufferedSamples() {
+  return state.samples.filter((sample) => state.selected.has(sample.id) && sample.buffer);
 }
 
 async function connectMidi() {
@@ -228,10 +256,10 @@ async function initFileProtocol() {
 
 async function listRootFolder() {
   await runProbe("TE file LIST root", async () => {
-    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileListPayload(0, 0), 3000);
-    const parsed = parseFileListResponse(response.payload);
+    const parsed = await listFolderByNode(0, "/");
+    renderDeviceTree();
+    updateButtons();
     return {
-      status: response.statusText,
       page: parsed.page,
       entries: parsed.entries.map((entry) => ({
         id: entry.id,
@@ -241,6 +269,57 @@ async function listRootFolder() {
         isDirectory: entry.isDirectory
       }))
     };
+  });
+}
+
+async function readRootInfo() {
+  await runProbe("TE file INFO root", async () => {
+    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileInfoPayload(0), 3000);
+    return { status: response.statusText, payloadHex: bytesToHex(response.payload) };
+  });
+}
+
+async function listKnownFolder(path) {
+  const node = state.deviceNodesByPath.get(path);
+  if (!node) {
+    log(`No cached node for ${path}. List root first.`);
+    return;
+  }
+  await runProbe(`TE file LIST ${path}`, async () => {
+    const parsed = await listFolderByNode(node.id, path);
+    renderDeviceTree();
+    updateButtons();
+    return {
+      page: parsed.page,
+      entries: parsed.entries.map((entry) => ({ id: entry.id, name: entry.name, size: entry.size, flags: entry.flags }))
+    };
+  });
+}
+
+async function listFolderByNode(nodeId, path) {
+  const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileListPayload(nodeId, 0), 3000);
+  const parsed = parseFileListResponse(response.payload);
+  const normalizedPath = path === "/" ? "" : path;
+  parsed.entries.forEach((entry) => {
+    const childPath = `${normalizedPath}/${entry.name}` || "/";
+    entry.path = childPath;
+    entry.parentPath = path;
+    state.deviceNodesByPath.set(childPath, entry);
+  });
+  state.deviceTree = [...state.deviceNodesByPath.values()];
+  return parsed;
+}
+
+async function readKnownMetadata(path) {
+  const node = state.deviceNodesByPath.get(path);
+  if (!node) {
+    log(`No cached node for ${path}. List root first.`);
+    return;
+  }
+  await runProbe(`TE metadata ${path}`, async () => {
+    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileMetadataGetPayload(node.id), 3000);
+    const parsed = parseJsonMetadataPayload(response.payload);
+    return { page: parsed.page, done: parsed.done, metadata: parsed.metadata };
   });
 }
 
@@ -301,26 +380,83 @@ async function handleFiles(files) {
     }
   }
   renderLibrary();
+  renderProject();
+  renderProposals();
   updateButtons();
 }
 
 async function importManifest(file) {
   const json = JSON.parse(await file.text());
-  state.samples = (json.samples || []).map((sample, index) => ({
-    id: sample.id || `manifest-${index}`,
-    source: sample.source || "manifest",
-    name: sample.name || `Sample ${index + 1}`,
-    fileName: sample.fileName || "",
-    type: sample.type || "manifest",
-    sizeBytes: Number(sample.sizeBytes || 0),
-    duration: Number(sample.duration || 0),
-    sampleRate: Number(sample.sampleRate || 0),
-    channels: Number(sample.channels || 0),
-    waveform: sample.waveform || [],
-    buffer: null
+  const sourceSamples = json.samples || json.sounds || [];
+  const sourceSongs = json.songs || [];
+  state.samples = sourceSamples.map(normalizeManifestSample);
+  state.scenes = (json.scenes || sourceSongs.flatMap((song, songIndex) => (song.scenes || []).map((scene, sceneIndex) => ({
+    id: scene.id || `${song.id || `song-${songIndex}`}-scene-${sceneIndex}`,
+    song: song.name || `Song ${songIndex + 1}`,
+    name: scene.name || `Scene ${sceneIndex + 1}`,
+    bars: scene.bars || 0,
+    groups: scene.groups || [],
+    patterns: scene.patterns || []
+  })))).map((scene, sceneIndex) => ({
+    id: scene.id || `scene-${sceneIndex}`,
+    song: scene.song || "Project",
+    name: scene.name || `Scene ${sceneIndex + 1}`,
+    bars: scene.bars || 0,
+    groups: scene.groups || [],
+    patterns: scene.patterns || []
+  }));
+  state.tracks = (json.tracks || sourceSongs.flatMap((song, songIndex) => (song.arrangement || song.tracks || []).map((track, trackIndex) => ({
+    id: track.id || `${song.id || `song-${songIndex}`}-track-${trackIndex}`,
+    song: song.name || `Song ${songIndex + 1}`,
+    name: track.name || `Track ${trackIndex + 1}`,
+    group: track.group || "",
+    type: track.type || "samples",
+    clips: (track.clips || []).map((clip, clipIndex) => ({
+      id: clip.id || `${track.id || `track-${trackIndex}`}-clip-${clipIndex}`,
+      soundId: clip.soundId,
+      barStart: clip.barStart || 0,
+      bars: clip.bars || 0,
+      soundName: sampleName(clip.soundId)
+    }))
+  })))).map((track, trackIndex) => ({
+    id: track.id || `track-${trackIndex}`,
+    song: track.song || "Project",
+    name: track.name || `Track ${trackIndex + 1}`,
+    group: track.group || "",
+    type: track.type || "samples",
+    clips: (track.clips || []).map((clip, clipIndex) => ({
+      id: clip.id || `${track.id || `track-${trackIndex}`}-clip-${clipIndex}`,
+      soundId: clip.soundId,
+      barStart: clip.barStart || 0,
+      bars: clip.bars || 0,
+      soundName: clip.soundName || sampleName(clip.soundId)
+    }))
   }));
   state.selected.clear();
   log(`Imported manifest: ${file.name}`);
+}
+
+function normalizeManifestSample(sample, index) {
+  return {
+    id: sample.id || `manifest-${index}`,
+    source: sample.source || "manifest",
+    name: sample.name || `Sample ${index + 1}`,
+    fileName: sample.fileName || sample.path || "",
+    type: sample.type || sample.playMode || "manifest",
+    sizeBytes: Number(sample.sizeBytes || sample.size || 0),
+    duration: Number(sample.duration || 0),
+    sampleRate: Number(sample.sampleRate || sample.samplerate || 0),
+    channels: Number(sample.channels || 0),
+    waveform: sample.waveform || [],
+    metadata: sample.meta || sample.metadata || {},
+    buffer: null,
+    objectUrl: ""
+  };
+}
+
+function sampleName(soundId) {
+  const sample = state.samples.find((item) => item.id === soundId);
+  return sample ? sample.name : soundId || "-";
 }
 
 function filteredSamples() {
@@ -332,7 +468,7 @@ function filteredSamples() {
 function renderLibrary() {
   const rows = filteredSamples();
   if (!rows.length) {
-    els.libraryRows.innerHTML = '<tr><td colspan="8" class="muted">No matching samples.</td></tr>';
+    els.libraryRows.innerHTML = '<tr><td colspan="9" class="muted">No matching samples.</td></tr>';
     updateButtons();
     return;
   }
@@ -347,10 +483,50 @@ function renderLibrary() {
       <td>${sample.sampleRate ? `${sample.sampleRate} Hz` : "-"}</td>
       <td>${bytesToHuman(sample.sizeBytes)}</td>
       <td>${waveHtml(sample.waveform)}</td>
-      <td><button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button"${sample.buffer ? "" : " disabled"}>WAV</button></td>
+      <td>${sample.objectUrl ? `<audio controls preload="none" src="${sample.objectUrl}"></audio>` : '<span class="muted">no buffer</span>'}</td>
+      <td><button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button" title="Download this local audio buffer as WAV."${sample.buffer ? "" : " disabled"}>WAV</button></td>
     </tr>`;
   }).join("");
   updateButtons();
+}
+
+function renderProject() {
+  els.sceneList.classList.toggle("muted", !state.scenes.length);
+  els.trackList.classList.toggle("muted", !state.tracks.length);
+  els.sceneList.innerHTML = state.scenes.length ? state.scenes.map((scene) => `<div class="item">
+    <strong>${escapeHtml(scene.name)}</strong>
+    <div class="sub">${escapeHtml(scene.song)} · ${scene.bars || 0} bars · groups ${escapeHtml((scene.groups || []).join(", ") || "-")} · patterns ${escapeHtml((scene.patterns || []).join(", ") || "-")}</div>
+  </div>`).join("") : "No scenes loaded.";
+  els.trackList.innerHTML = state.tracks.length ? state.tracks.map((track) => `<div class="item">
+    <strong>${escapeHtml(track.name)}</strong>
+    <div class="sub">${escapeHtml(track.song)} · ${escapeHtml(track.group || "-")} · ${track.clips.length} clips</div>
+    <div class="sub">${track.clips.map((clip) => `${escapeHtml(clip.soundName)} @ ${clip.barStart || 0}/${clip.bars || 0}`).join("<br>") || "No clips"}</div>
+  </div>`).join("") : "No tracks loaded.";
+}
+
+function renderDeviceTree() {
+  const nodes = [...state.deviceNodesByPath.entries()].sort(([a], [b]) => a.localeCompare(b));
+  els.deviceTree.classList.toggle("muted", !nodes.length);
+  els.deviceTree.innerHTML = nodes.length ? nodes.map(([path, node]) => `<div class="item">
+    <strong>${escapeHtml(path)}</strong>
+    <div class="sub">id ${node.id} · ${node.isDirectory ? "folder" : "file"} · ${bytesToHuman(node.size)}</div>
+  </div>`).join("") : "No device folders read.";
+}
+
+function renderProposals() {
+  const proposals = [
+    ["Read-only browser", "Add recursive folder scan and metadata cache once root listing is verified."],
+    ["Sample backup", "Download device samples as WAV after /sounds paths and metadata are confirmed."],
+    ["Pad assignment", "Show active project/group/pad and map sample IDs to pads."],
+    ["Project view", "Render scenes, tracks, pads, and clips from real project metadata."],
+    ["Safe write mode", "Add an explicit hardware-tested unlock flow for upload/delete/metadata writes."],
+    ["Compare mode", "Compare local WAV CRCs against KO II sample metadata before restore."],
+    ["Session capture", "Export raw SysEx request/response logs for protocol validation."]
+  ];
+  els.proposalList.innerHTML = proposals.map(([title, body]) => `<div class="item">
+    <strong>${escapeHtml(title)}</strong>
+    <div class="sub">${escapeHtml(body)}</div>
+  </div>`).join("");
 }
 
 function waveHtml(waveform = []) {
@@ -361,6 +537,18 @@ function waveHtml(waveform = []) {
 function downloadSample(sample) {
   if (!sample.buffer) return;
   downloadBlob(audioBufferToWavBlob(sample.buffer), `${safeName(sample.name)}.wav`);
+}
+
+function downloadSamples(samples, label) {
+  const buffered = samples.filter((sample) => sample.buffer);
+  const skipped = samples.length - buffered.length;
+  if (!buffered.length) {
+    log(`${label}: no local audio buffers available; nothing downloaded.`);
+    return;
+  }
+  buffered.forEach(downloadSample);
+  if (skipped) log(`${label}: downloaded ${buffered.length}, skipped ${skipped} without local audio buffers.`);
+  else log(`${label}: downloaded ${buffered.length}.`);
 }
 
 function downloadBlob(blob, filename) {
@@ -379,7 +567,10 @@ function exportManifest() {
     exportedAt: new Date().toISOString(),
     note: "Local browser sample manifest. Hardware transfers are not represented here.",
     device: state.device,
-    samples: state.samples.map(({ buffer, ...sample }) => sample)
+    samples: state.samples.map(({ buffer, objectUrl, ...sample }) => sample),
+    tracks: state.tracks,
+    scenes: state.scenes,
+    deviceTree: [...state.deviceNodesByPath.entries()].map(([path, node]) => ({ path, id: node.id, flags: node.flags, size: node.size, name: node.name }))
   };
   downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "ko2-local-samples.json");
 }
@@ -390,12 +581,24 @@ els.midiOutSelect.addEventListener("change", selectPorts);
 els.identityBtn.addEventListener("click", sendUniversalIdentity);
 els.teEchoBtn.addEventListener("click", sendTeEchoProbe);
 els.fileInitBtn.addEventListener("click", initFileProtocol);
+els.rootInfoBtn.addEventListener("click", readRootInfo);
 els.listRootBtn.addEventListener("click", listRootFolder);
+els.listSoundsBtn.addEventListener("click", () => listKnownFolder("/sounds"));
+els.listProjectsBtn.addEventListener("click", () => listKnownFolder("/projects"));
+els.readSoundsMetaBtn.addEventListener("click", () => readKnownMetadata("/sounds"));
+els.readProjectsMetaBtn.addEventListener("click", () => readKnownMetadata("/projects"));
 els.fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 els.searchInput.addEventListener("input", renderLibrary);
 els.clearLogBtn.addEventListener("click", () => els.log.textContent = "Log cleared.");
+els.clearTreeBtn.addEventListener("click", () => {
+  state.deviceNodesByPath.clear();
+  state.deviceTree = [];
+  renderDeviceTree();
+  updateButtons();
+});
 els.exportManifestBtn.addEventListener("click", exportManifest);
-els.downloadSelectedBtn.addEventListener("click", () => state.samples.filter((sample) => state.selected.has(sample.id)).forEach(downloadSample));
+els.downloadAllBtn.addEventListener("click", () => downloadSamples(state.samples, "Download all WAV"));
+els.downloadSelectedBtn.addEventListener("click", () => downloadSamples(state.samples.filter((sample) => state.selected.has(sample.id)), "Download selected WAV"));
 els.selectAllBtn.addEventListener("click", () => {
   filteredSamples().forEach((sample) => state.selected.add(sample.id));
   renderLibrary();
@@ -433,4 +636,7 @@ els.dropZone.addEventListener("drop", (event) => {
 });
 
 updateMeta();
+renderProject();
+renderDeviceTree();
+renderProposals();
 updateButtons();
