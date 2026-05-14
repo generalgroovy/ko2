@@ -26,6 +26,20 @@ const {
   seconds
 } = window.KO2Audio;
 
+const defaultSettings = {
+  requestSysex: true,
+  autoSysexRetry: true,
+  autoSelectKo: true,
+  listenInput: true,
+  allowReadProbes: true,
+  unlockWriteActions: false,
+  logRawMidi: true,
+  deviceId: 0x7f,
+  probeTimeout: 3000,
+  portPollAttempts: 5,
+  portPollInterval: 300
+};
+
 const state = {
   midi: null,
   sysex: false,
@@ -47,7 +61,8 @@ const state = {
   deviceNodesByPath: new Map(),
   deviceTree: [],
   selected: new Set(),
-  audioContext: null
+  audioContext: null,
+  settings: { ...defaultSettings }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -57,6 +72,19 @@ const els = {
   connectBtn: $("connectBtn"),
   refreshPortsBtn: $("refreshPortsBtn"),
   diagnoseMidiBtn: $("diagnoseMidiBtn"),
+  settingRequestSysex: $("settingRequestSysex"),
+  settingAutoSysexRetry: $("settingAutoSysexRetry"),
+  settingAutoSelectKo: $("settingAutoSelectKo"),
+  settingListenInput: $("settingListenInput"),
+  settingAllowReadProbes: $("settingAllowReadProbes"),
+  settingUnlockWriteActions: $("settingUnlockWriteActions"),
+  settingLogRawMidi: $("settingLogRawMidi"),
+  settingDeviceId: $("settingDeviceId"),
+  settingProbeTimeout: $("settingProbeTimeout"),
+  settingPollAttempts: $("settingPollAttempts"),
+  settingPollInterval: $("settingPollInterval"),
+  exportSettingsBtn: $("exportSettingsBtn"),
+  resetSettingsBtn: $("resetSettingsBtn"),
   midiInSelect: $("midiInSelect"),
   midiOutSelect: $("midiOutSelect"),
   identityBtn: $("identityBtn"),
@@ -68,6 +96,12 @@ const els = {
   listProjectsBtn: $("listProjectsBtn"),
   readSoundsMetaBtn: $("readSoundsMetaBtn"),
   readProjectsMetaBtn: $("readProjectsMetaBtn"),
+  uploadSampleBtn: $("uploadSampleBtn"),
+  deleteSampleBtn: $("deleteSampleBtn"),
+  moveFileBtn: $("moveFileBtn"),
+  writeMetadataBtn: $("writeMetadataBtn"),
+  devicePlaybackBtn: $("devicePlaybackBtn"),
+  backupRestoreBtn: $("backupRestoreBtn"),
   dropZone: $("dropZone"),
   fileInput: $("fileInput"),
   exportManifestBtn: $("exportManifestBtn"),
@@ -92,7 +126,8 @@ const els = {
   metaSku: $("metaSku"),
   metaSerial: $("metaSerial"),
   metaChunk: $("metaChunk"),
-  metaSysex: $("metaSysex")
+  metaSysex: $("metaSysex"),
+  metaPrivileges: $("metaPrivileges")
 };
 
 state.te = new TeSysexClient({ log });
@@ -127,22 +162,32 @@ function updateMeta() {
   els.metaSerial.textContent = state.device.serial || "-";
   els.metaChunk.textContent = state.device.fileChunkSize ? bytesToHuman(state.device.fileChunkSize) : "-";
   els.metaSysex.textContent = state.sysex ? "granted" : "not granted";
+  els.metaPrivileges.textContent = privilegeSummary();
   els.midiPortLabel.textContent = state.input && state.output ? "MIDI pair selected" : "No MIDI pair";
 }
 
 function updateButtons() {
   const hasPair = !!state.input && !!state.output;
   const hasSysexPair = hasPair && state.sysex;
+  const canRead = hasSysexPair && state.settings.allowReadProbes;
   els.refreshPortsBtn.disabled = !state.midi;
-  els.identityBtn.disabled = !state.output || !state.sysex;
-  els.teEchoBtn.disabled = !hasSysexPair;
-  els.fileInitBtn.disabled = !hasSysexPair;
-  els.rootInfoBtn.disabled = !hasSysexPair || !state.device.fileChunkSize;
-  els.listRootBtn.disabled = !hasSysexPair || !state.device.fileChunkSize;
-  els.listSoundsBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/sounds");
-  els.listProjectsBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/projects");
-  els.readSoundsMetaBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/sounds");
-  els.readProjectsMetaBtn.disabled = !hasSysexPair || !state.deviceNodesByPath.has("/projects");
+  els.identityBtn.disabled = !state.output || !state.sysex || !state.settings.allowReadProbes;
+  els.teEchoBtn.disabled = !canRead;
+  els.fileInitBtn.disabled = !canRead;
+  els.rootInfoBtn.disabled = !canRead || !state.device.fileChunkSize;
+  els.listRootBtn.disabled = !canRead || !state.device.fileChunkSize;
+  els.listSoundsBtn.disabled = !canRead || !state.deviceNodesByPath.has("/sounds");
+  els.listProjectsBtn.disabled = !canRead || !state.deviceNodesByPath.has("/projects");
+  els.readSoundsMetaBtn.disabled = !canRead || !state.deviceNodesByPath.has("/sounds");
+  els.readProjectsMetaBtn.disabled = !canRead || !state.deviceNodesByPath.has("/projects");
+  [
+    els.uploadSampleBtn,
+    els.deleteSampleBtn,
+    els.moveFileBtn,
+    els.writeMetadataBtn,
+    els.devicePlaybackBtn,
+    els.backupRestoreBtn
+  ].forEach((button) => button.disabled = !state.settings.unlockWriteActions);
   els.exportManifestBtn.disabled = !state.samples.length;
   els.downloadAllBtn.disabled = !state.samples.some((sample) => sample.buffer);
   els.downloadSelectedBtn.disabled = !selectedBufferedSamples().length;
@@ -152,6 +197,14 @@ function updateButtons() {
   const selectedVisible = visible.filter((id) => state.selected.has(id)).length;
   els.masterCheckbox.checked = visible.length > 0 && selectedVisible === visible.length;
   els.masterCheckbox.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+}
+
+function privilegeSummary() {
+  const items = ["midi"];
+  items.push(state.settings.requestSysex ? (state.sysex ? "sysex" : "sysex requested") : "sysex off");
+  items.push(state.settings.allowReadProbes ? "read probes" : "read locked");
+  items.push(state.settings.unlockWriteActions ? "write visible" : "write locked");
+  return items.join(" / ");
 }
 
 function selectedBufferedSamples() {
@@ -168,7 +221,7 @@ async function connectMidi() {
   if (state.midi) {
     refreshMidiPorts();
     logPortSummary("MIDI ports refreshed.");
-    if (!state.sysex) {
+    if (state.settings.requestSysex && state.settings.autoSysexRetry && !state.sysex) {
       await requestSysexUpgrade();
     }
     return;
@@ -190,7 +243,9 @@ async function connectMidi() {
     return;
   }
 
-  await requestSysexUpgrade();
+  if (state.settings.requestSysex && state.settings.autoSysexRetry) {
+    await requestSysexUpgrade();
+  }
 }
 
 function refreshMidiPorts() {
@@ -206,14 +261,14 @@ function refreshMidiPorts() {
   state.output = choosePreferredPort(state.outputs, state.output);
   if (state.input) els.midiInSelect.value = state.input.id;
   if (state.output) els.midiOutSelect.value = state.output.id;
-  state.inputs.forEach((input) => input.onmidimessage = onMidiMessage);
+  state.inputs.forEach((input) => input.onmidimessage = state.settings.listenInput ? onMidiMessage : null);
   configureClient();
   updateMeta();
   updateButtons();
 }
 
 async function requestSysexUpgrade() {
-  if (!navigator.requestMIDIAccess || state.sysex) return;
+  if (!navigator.requestMIDIAccess || state.sysex || !state.settings.requestSysex) return;
   try {
     const sysexAccess = await navigator.requestMIDIAccess({ sysex: true });
     state.midi = sysexAccess;
@@ -232,9 +287,9 @@ async function requestSysexUpgrade() {
 }
 
 async function pollPortsBriefly() {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < state.settings.portPollAttempts; attempt += 1) {
     if (state.inputs.length || state.outputs.length) return;
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, state.settings.portPollInterval));
     refreshMidiPorts();
   }
 }
@@ -290,6 +345,7 @@ function renderPortSelect(select, ports, emptyLabel) {
 
 function choosePreferredPort(ports, current) {
   if (current && ports.some((port) => port.id === current.id)) return ports.find((port) => port.id === current.id);
+  if (!state.settings.autoSelectKo) return ports[0] || null;
   return ports.find((port) => /ep|ko|teenage|engineering|k\.?o/i.test(`${port.name || ""} ${port.manufacturer || ""}`)) || ports[0] || null;
 }
 
@@ -297,7 +353,7 @@ function selectPorts() {
   if (!state.midi) return;
   state.input = state.midi.inputs.get(els.midiInSelect.value) || null;
   state.output = state.midi.outputs.get(els.midiOutSelect.value) || null;
-  state.inputs.forEach((input) => input.onmidimessage = onMidiMessage);
+  state.inputs.forEach((input) => input.onmidimessage = state.settings.listenInput ? onMidiMessage : null);
   configureClient();
   updateMeta();
   updateButtons();
@@ -307,7 +363,7 @@ function selectPorts() {
 function configureClient() {
   state.te.configure({
     output: state.output,
-    deviceId: Number.isInteger(state.device.id) ? state.device.id : 0x7f
+    deviceId: Number.isInteger(state.device.id) ? state.device.id : state.settings.deviceId
   });
 }
 
@@ -319,7 +375,7 @@ function sendUniversalIdentity() {
 
 async function sendTeEchoProbe() {
   await runProbe("TE echo", async () => {
-    const response = await state.te.sendAndReceive(TE_SYSEX.ECHO, stringToBytes("ko2-web-midi-lab"), 2500);
+    const response = await state.te.sendAndReceive(TE_SYSEX.ECHO, stringToBytes("ko2-web-midi-lab"), state.settings.probeTimeout);
     return {
       status: response.statusText,
       payloadHex: bytesToHex(response.payload),
@@ -330,7 +386,7 @@ async function sendTeEchoProbe() {
 
 async function initFileProtocol() {
   await runProbe("TE file INIT", async () => {
-    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileInitPayload(), 3000);
+    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileInitPayload(), state.settings.probeTimeout);
     const parsed = parseFileInitResponse(response.payload);
     if (parsed) state.device.fileChunkSize = parsed.chunkSize;
     updateMeta();
@@ -363,7 +419,7 @@ async function listRootFolder() {
 
 async function readRootInfo() {
   await runProbe("TE file INFO root", async () => {
-    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileInfoPayload(0), 3000);
+    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileInfoPayload(0), state.settings.probeTimeout);
     return { status: response.statusText, payloadHex: bytesToHex(response.payload) };
   });
 }
@@ -386,7 +442,7 @@ async function listKnownFolder(path) {
 }
 
 async function listFolderByNode(nodeId, path) {
-  const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileListPayload(nodeId, 0), 3000);
+  const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileListPayload(nodeId, 0), state.settings.probeTimeout);
   const parsed = parseFileListResponse(response.payload);
   const normalizedPath = path === "/" ? "" : path;
   parsed.entries.forEach((entry) => {
@@ -406,13 +462,17 @@ async function readKnownMetadata(path) {
     return;
   }
   await runProbe(`TE metadata ${path}`, async () => {
-    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileMetadataGetPayload(node.id), 3000);
+    const response = await state.te.sendAndReceive(TE_FILE.COMMAND, buildFileMetadataGetPayload(node.id), state.settings.probeTimeout);
     const parsed = parseJsonMetadataPayload(response.payload);
     return { page: parsed.page, done: parsed.done, metadata: parsed.metadata };
   });
 }
 
 async function runProbe(label, task) {
+  if (!state.settings.allowReadProbes) {
+    log(`${label} blocked: read-only probe privilege is disabled.`);
+    return;
+  }
   try {
     log(`${label} started.`);
     const result = await task();
@@ -454,7 +514,9 @@ function onMidiMessage(event) {
     return;
   }
 
-  log(`MIDI in: ${bytesToHex(data)}`);
+  if (state.settings.logRawMidi) {
+    log(`MIDI in: ${bytesToHex(data)}`);
+  }
 }
 
 async function handleFiles(files) {
@@ -664,12 +726,91 @@ function exportManifest() {
   downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "ko2-local-samples.json");
 }
 
+function syncSettingsForm() {
+  els.settingRequestSysex.checked = state.settings.requestSysex;
+  els.settingAutoSysexRetry.checked = state.settings.autoSysexRetry;
+  els.settingAutoSelectKo.checked = state.settings.autoSelectKo;
+  els.settingListenInput.checked = state.settings.listenInput;
+  els.settingAllowReadProbes.checked = state.settings.allowReadProbes;
+  els.settingUnlockWriteActions.checked = state.settings.unlockWriteActions;
+  els.settingLogRawMidi.checked = state.settings.logRawMidi;
+  els.settingDeviceId.value = state.settings.deviceId;
+  els.settingProbeTimeout.value = state.settings.probeTimeout;
+  els.settingPollAttempts.value = state.settings.portPollAttempts;
+  els.settingPollInterval.value = state.settings.portPollInterval;
+}
+
+function readSettingsForm() {
+  state.settings = {
+    requestSysex: els.settingRequestSysex.checked,
+    autoSysexRetry: els.settingAutoSysexRetry.checked,
+    autoSelectKo: els.settingAutoSelectKo.checked,
+    listenInput: els.settingListenInput.checked,
+    allowReadProbes: els.settingAllowReadProbes.checked,
+    unlockWriteActions: els.settingUnlockWriteActions.checked,
+    logRawMidi: els.settingLogRawMidi.checked,
+    deviceId: clampNumber(els.settingDeviceId.value, 0, 127, defaultSettings.deviceId),
+    probeTimeout: clampNumber(els.settingProbeTimeout.value, 250, 30000, defaultSettings.probeTimeout),
+    portPollAttempts: clampNumber(els.settingPollAttempts.value, 0, 30, defaultSettings.portPollAttempts),
+    portPollInterval: clampNumber(els.settingPollInterval.value, 50, 5000, defaultSettings.portPollInterval)
+  };
+  syncSettingsForm();
+  configureClient();
+  refreshMidiPorts();
+  updateMeta();
+  updateButtons();
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(number)));
+}
+
+function exportSettings() {
+  downloadBlob(new Blob([JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    browserPrivileges: {
+      midiAccessCreated: !!state.midi,
+      sysexGranted: state.sysex,
+      note: "Browser MIDI and SysEx permissions are granted by the browser prompt, not by this JSON."
+    },
+    settings: state.settings
+  }, null, 2)], { type: "application/json" }), "ko2-runtime-settings.json");
+}
+
+function resetSettings() {
+  state.settings = { ...defaultSettings };
+  syncSettingsForm();
+  readSettingsForm();
+  log("Runtime settings reset.", state.settings);
+}
+
+function lockedAction(label) {
+  log(`${label}: write privilege surface is visible, but no verified KO II write-transfer implementation is enabled.`);
+}
+
 els.connectBtn.addEventListener("click", connectMidi);
 els.refreshPortsBtn.addEventListener("click", () => {
   refreshMidiPorts();
   logPortSummary("Manual port refresh.");
 });
 els.diagnoseMidiBtn.addEventListener("click", diagnoseMidi);
+[
+  els.settingRequestSysex,
+  els.settingAutoSysexRetry,
+  els.settingAutoSelectKo,
+  els.settingListenInput,
+  els.settingAllowReadProbes,
+  els.settingUnlockWriteActions,
+  els.settingLogRawMidi,
+  els.settingDeviceId,
+  els.settingProbeTimeout,
+  els.settingPollAttempts,
+  els.settingPollInterval
+].forEach((control) => control.addEventListener("change", readSettingsForm));
+els.exportSettingsBtn.addEventListener("click", exportSettings);
+els.resetSettingsBtn.addEventListener("click", resetSettings);
 els.midiInSelect.addEventListener("change", selectPorts);
 els.midiOutSelect.addEventListener("change", selectPorts);
 els.identityBtn.addEventListener("click", sendUniversalIdentity);
@@ -681,6 +822,12 @@ els.listSoundsBtn.addEventListener("click", () => listKnownFolder("/sounds"));
 els.listProjectsBtn.addEventListener("click", () => listKnownFolder("/projects"));
 els.readSoundsMetaBtn.addEventListener("click", () => readKnownMetadata("/sounds"));
 els.readProjectsMetaBtn.addEventListener("click", () => readKnownMetadata("/projects"));
+els.uploadSampleBtn.addEventListener("click", () => lockedAction("Upload sample"));
+els.deleteSampleBtn.addEventListener("click", () => lockedAction("Delete sample"));
+els.moveFileBtn.addEventListener("click", () => lockedAction("Move file"));
+els.writeMetadataBtn.addEventListener("click", () => lockedAction("Write metadata"));
+els.devicePlaybackBtn.addEventListener("click", () => lockedAction("Device playback"));
+els.backupRestoreBtn.addEventListener("click", () => lockedAction("Backup / restore"));
 els.fileInput.addEventListener("change", (event) => handleFiles(event.target.files));
 els.searchInput.addEventListener("input", renderLibrary);
 els.clearLogBtn.addEventListener("click", () => els.log.textContent = "Log cleared.");
@@ -729,6 +876,7 @@ els.dropZone.addEventListener("drop", (event) => {
   handleFiles(event.dataTransfer.files);
 });
 
+syncSettingsForm();
 updateMeta();
 renderProject();
 renderDeviceTree();

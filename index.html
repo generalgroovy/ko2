@@ -41,6 +41,59 @@
         </section>
 
         <section class="section stack">
+          <h2>Runtime Settings</h2>
+          <label class="check-row">
+            <input id="settingRequestSysex" type="checkbox" checked>
+            <span>Request SysEx privilege</span>
+          </label>
+          <label class="check-row">
+            <input id="settingAutoSysexRetry" type="checkbox" checked>
+            <span>Retry SysEx after MIDI registration</span>
+          </label>
+          <label class="check-row">
+            <input id="settingAutoSelectKo" type="checkbox" checked>
+            <span>Auto-select KO II ports</span>
+          </label>
+          <label class="check-row">
+            <input id="settingListenInput" type="checkbox" checked>
+            <span>Listen to selected MIDI input</span>
+          </label>
+          <label class="check-row">
+            <input id="settingAllowReadProbes" type="checkbox" checked>
+            <span>Enable read-only probes</span>
+          </label>
+          <label class="check-row">
+            <input id="settingUnlockWriteActions" type="checkbox">
+            <span>Show write privileges as unlocked</span>
+          </label>
+          <label class="check-row">
+            <input id="settingLogRawMidi" type="checkbox" checked>
+            <span>Log unmatched MIDI input</span>
+          </label>
+          <label>
+            Device ID
+            <input id="settingDeviceId" type="number" min="0" max="127" value="127" title="SysEx target device ID. 127 is broadcast.">
+          </label>
+          <label>
+            Probe timeout ms
+            <input id="settingProbeTimeout" type="number" min="250" max="30000" step="250" value="3000" title="Timeout for TE file protocol requests.">
+          </label>
+          <label>
+            Port poll attempts
+            <input id="settingPollAttempts" type="number" min="0" max="30" value="5" title="Number of short retries after MIDI registration.">
+          </label>
+          <label>
+            Port poll interval ms
+            <input id="settingPollInterval" type="number" min="50" max="5000" step="50" value="300" title="Delay between port refresh retries.">
+          </label>
+          <div class="row">
+            <button id="exportSettingsBtn" type="button" title="Download current runtime settings as JSON.">Export settings</button>
+            <button id="resetSettingsBtn" type="button" title="Restore default runtime settings.">Reset</button>
+          </div>
+          <p class="hint">Browser MIDI and SysEx privileges still require the browser permission prompt.</p>
+        </section>
+
+        <section class="section stack">
           <h2>Read-Only Probes</h2>
           <button id="identityBtn" type="button" disabled title="Send the standard MIDI identity request.">Identity</button>
           <button id="teEchoBtn" type="button" disabled title="Send a TE echo SysEx request and log the response.">TE echo</button>
@@ -68,12 +121,12 @@
 
         <section class="section stack">
           <h2>Locked Actions</h2>
-          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Upload sample</button>
-          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Delete sample</button>
-          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Move file</button>
-          <button type="button" disabled title="Blocked until write mode is deliberately enabled and tested.">Write metadata</button>
-          <button type="button" disabled title="Blocked until playback behavior is validated on hardware.">Device playback</button>
-          <button type="button" disabled title="Blocked until project archive behavior is validated on hardware.">Backup / restore</button>
+          <button id="uploadSampleBtn" type="button" disabled title="Requires write privilege unlock and verified transfer implementation.">Upload sample</button>
+          <button id="deleteSampleBtn" type="button" disabled title="Requires write privilege unlock and verified delete command.">Delete sample</button>
+          <button id="moveFileBtn" type="button" disabled title="Requires write privilege unlock and verified move command.">Move file</button>
+          <button id="writeMetadataBtn" type="button" disabled title="Requires write privilege unlock and verified metadata command.">Write metadata</button>
+          <button id="devicePlaybackBtn" type="button" disabled title="Requires write privilege unlock and validated playback command.">Device playback</button>
+          <button id="backupRestoreBtn" type="button" disabled title="Requires write privilege unlock and verified project archive behavior.">Backup / restore</button>
         </section>
       </aside>
 
@@ -89,6 +142,7 @@
             <div><span>Serial</span><strong id="metaSerial">-</strong></div>
             <div><span>File chunk</span><strong id="metaChunk">-</strong></div>
             <div><span>SysEx</span><strong id="metaSysex">-</strong></div>
+            <div><span>Privileges</span><strong id="metaPrivileges">-</strong></div>
           </div>
         </section>
 

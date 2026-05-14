@@ -57,6 +57,24 @@ label {
   font-size: .84rem;
 }
 
+.check-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  min-height: 30px;
+}
+
+.check-row input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.check-row span {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 8px; font-size: 2rem; letter-spacing: 0; }
 h2 { margin-bottom: 12px; font-size: 1rem; }

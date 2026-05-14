@@ -10,6 +10,7 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Registers plain MIDI first, then requests SysEx as an upgrade so EP-133 ports still appear if SysEx is denied.
 - Tracks MIDI inputs and outputs separately.
 - Includes manual port refresh and browser MIDI diagnostics.
+- Exposes runtime settings for SysEx requests, read probe privilege, write-action visibility, port selection, MIDI listening, logging, poll timing, device ID, and request timeouts.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
 - Builds and parses Teenage Engineering SysEx frames.
