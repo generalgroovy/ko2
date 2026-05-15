@@ -950,8 +950,10 @@ function renderLibrary() {
 
   els.libraryRows.innerHTML = rows.map((sample) => {
     const checked = state.selected.has(sample.id) ? " checked" : "";
+    const selected = state.selected.has(sample.id) ? " selected" : "";
     const assignments = assignedPadsForSample(sample.id);
-    return `<tr>
+    const firstAssignment = assignments[0];
+    return `<tr class="sample-row${selected}" data-id="${escapeHtml(sample.id)}">
       <td><input class="rowCheck" type="checkbox" data-id="${escapeHtml(sample.id)}"${checked}></td>
       <td><span class="slot-pill">${sample.slot || "-"}</span></td>
       <td>${assignmentHtml(assignments)}</td>
@@ -962,7 +964,12 @@ function renderLibrary() {
       <td>${bytesToHuman(sample.sizeBytes)}</td>
       <td>${waveHtml(sample.waveform)}</td>
       <td>${sample.objectUrl ? `<audio controls preload="none" src="${sample.objectUrl}"></audio>` : '<span class="muted">no buffer</span>'}</td>
-      <td><div class="action-row"><button class="playOne" data-id="${escapeHtml(sample.id)}" type="button" title="Play this local audio buffer."${sample.buffer ? "" : " disabled"}>Play</button><button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button" title="Download this local audio buffer as WAV."${sample.buffer ? "" : " disabled"}>WAV</button></div></td>
+      <td><div class="action-row">
+        <button class="selectOne" data-id="${escapeHtml(sample.id)}" type="button" title="Select this slot.">Select</button>
+        <button class="playOne" data-id="${escapeHtml(sample.id)}" type="button" title="Play this local audio buffer."${sample.buffer ? "" : " disabled"}>Play</button>
+        <button class="triggerOne" data-pad="${escapeHtml(firstAssignment ? firstAssignment.pad : "")}" data-label="${escapeHtml(firstAssignment ? `${firstAssignment.group || ""}${firstAssignment.pad} ${sample.name}` : sample.name)}" type="button" title="Send the assigned pad note to the selected KO II MIDI output."${firstAssignment ? "" : " disabled"}>MIDI</button>
+        <button class="downloadOne" data-id="${escapeHtml(sample.id)}" type="button" title="Download this local audio buffer as WAV."${sample.buffer ? "" : " disabled"}>WAV</button>
+      </div></td>
     </tr>`;
   }).join("");
   renderTimeline();
@@ -1686,6 +1693,13 @@ els.libraryRows.addEventListener("change", (event) => {
   updateButtons();
 });
 els.libraryRows.addEventListener("click", (event) => {
+  const selectButton = event.target.closest(".selectOne");
+  if (selectButton) {
+    state.selected.clear();
+    state.selected.add(selectButton.dataset.id);
+    renderLibrary();
+    return;
+  }
   const playButton = event.target.closest(".playOne");
   if (playButton) {
     const sample = state.samples.find((item) => item.id === playButton.dataset.id);
@@ -1697,10 +1711,23 @@ els.libraryRows.addEventListener("click", (event) => {
     }
     return;
   }
+  const triggerButton = event.target.closest(".triggerOne");
+  if (triggerButton) {
+    sendPadNote(Number(triggerButton.dataset.pad), triggerButton.dataset.label || "");
+    return;
+  }
   const button = event.target.closest(".downloadOne");
-  if (!button) return;
-  const sample = state.samples.find((item) => item.id === button.dataset.id);
-  if (sample) downloadSample(sample);
+  if (button) {
+    const sample = state.samples.find((item) => item.id === button.dataset.id);
+    if (sample) downloadSample(sample);
+    return;
+  }
+  if (event.target.closest("button,input,audio")) return;
+  const row = event.target.closest(".sample-row");
+  if (!row) return;
+  state.selected.clear();
+  state.selected.add(row.dataset.id);
+  renderLibrary();
 });
 els.dropZone.addEventListener("dragover", (event) => {
   event.preventDefault();

@@ -7,7 +7,7 @@ Refactor the KO II web app to maximize live-performance usability while preservi
 - Keep everything usable on a fullscreen laptop display without requiring constant scrolling.
 - Use collapsible sections, dropdowns, and context menus where they reduce clutter.
 - Rework the GUI around a conventional DAW shape: transport/status, inspector, arrangement/timeline, pad performance area, sample browser, device browser, and session log.
-- Make the global style and session log feel like a Matrix-style terminal: green-on-black, scanlines, compact mono data surfaces.
+- Make the global style feel like Teenage Engineering's EP Sample Tool: compact, high-contrast, direct, and focused on slots, pads, device state, and file actions.
 - Add safe, real-time MIDI performance controls that can interact with KO II during a live session.
 - Accurately visualize only browser-observable KO II activity: incoming MIDI, outgoing MIDI, SysEx replies/probes, selected ports, cached project data, and local preview playback.
 - Keep raw PCM and browser-decoded audio playable locally.

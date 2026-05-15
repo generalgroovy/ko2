@@ -33,7 +33,7 @@ Make the first screen feel like a compact DAW hardware editor, not a lab noteboo
 - Automatic read-only project loading after MIDI/SysEx connection, while preserving manual probe buttons for recovery.
 - Live performance controls for local preview, MIDI trigger, or both, with channel/base-note/velocity/gate/hold options.
 - Pad context menu, keyboard shortcuts, MIDI panic, and MIDI clock controls for performance sessions.
-- Matrix-style visual language and session log for high-contrast performance monitoring.
+- Teenage Engineering EP Sample Tool-inspired visual language: dense, minimal, high-contrast, and action-first.
 - Live monitor cards for observed state, MIDI input, MIDI output, SysEx/file probe status, held notes, and clock state.
 - Local sample versus cached device tree comparison by normalized filename and byte size.
 - Project view for scenes, tracks, clips, pads, and sample references from imported metadata.

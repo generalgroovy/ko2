@@ -8,12 +8,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app daw-app">
+  <main class="app sample-tool-app">
     <header class="topbar">
       <div>
         <p class="eyebrow">EP / KO II</p>
-        <h1>DAW Control</h1>
-        <p class="lede">Live USB MIDI performance, project view, sample pool, and read-only protocol monitor.</p>
+        <h1>Sample Tool</h1>
       </div>
       <div class="status-stack">
         <div class="pill" id="connectionBadge"><span class="dot"></span><span>Not connected</span></div>
@@ -21,29 +20,27 @@
       </div>
     </header>
 
-    <section class="notice">Live monitor shows browser-observable KO II MIDI, SysEx, project-read, and local preview activity. Write commands remain blocked until verified on hardware.</section>
-
-    <section class="layout">
+    <section class="layout sample-tool-layout">
       <aside class="panel stack inspector">
         <details class="section stack fold" open>
-          <summary>MIDI I/O</summary>
-          <button id="connectBtn" class="primary" type="button" title="Register MIDI ports first, then request SysEx access.">Connect MIDI</button>
-          <button id="refreshPortsBtn" type="button" disabled title="Refresh browser MIDI inputs and outputs.">Refresh ports</button>
-          <button id="diagnoseMidiBtn" type="button" title="Log browser MIDI support, origin state, and visible ports.">Diagnose MIDI</button>
+          <summary>Connect</summary>
+          <button id="connectBtn" class="primary" type="button" title="Register MIDI ports and request SysEx access.">Connect</button>
+          <button id="refreshPortsBtn" type="button" disabled title="Refresh browser MIDI inputs and outputs.">Refresh</button>
+          <button id="diagnoseMidiBtn" type="button" title="Log browser MIDI support and visible ports.">Diagnose</button>
           <label>
-            MIDI input
+            In
             <select id="midiInSelect" disabled><option>No MIDI input</option></select>
           </label>
           <label>
-            MIDI output
+            Out
             <select id="midiOutSelect" disabled><option>No MIDI output</option></select>
           </label>
         </details>
 
         <details class="section stack fold" open>
-          <summary>Performance</summary>
+          <summary>Play</summary>
           <label>
-            Trigger mode
+            Mode
             <select id="performanceModeSelect" title="Choose whether pad triggers play local audio, send MIDI to KO II, or both.">
               <option value="both">Local + MIDI</option>
               <option value="midi">MIDI only</option>
@@ -51,11 +48,11 @@
             </select>
           </label>
           <label>
-            MIDI channel
+            Channel
             <select id="performanceChannelSelect" title="MIDI channel for outgoing performance notes."></select>
           </label>
           <label>
-            Base note
+            Base
             <input id="performanceBaseNote" type="number" min="0" max="127" value="36" title="First pad note. Pads increment from this note.">
           </label>
           <label>
@@ -76,10 +73,10 @@
           </label>
           <div class="row">
             <button id="panicBtn" type="button" title="Send note-off and all-notes-off messages on every channel.">Panic</button>
-            <button id="clockStartBtn" type="button" title="Send MIDI clock start.">Clock start</button>
+            <button id="clockStartBtn" type="button" title="Send MIDI clock start.">Clock</button>
             <button id="clockContinueBtn" type="button" title="Send MIDI clock continue.">Continue</button>
             <button id="clockTickBtn" type="button" title="Send one MIDI timing clock tick.">Tick</button>
-            <button id="clockStopBtn" type="button" title="Send MIDI clock stop.">Clock stop</button>
+            <button id="clockStopBtn" type="button" title="Send MIDI clock stop.">Stop</button>
           </div>
         </details>
 
@@ -150,14 +147,13 @@
             <input id="settingPcmBitDepth" type="number" min="8" max="32" step="8" value="16" title="Bit depth for raw PCM files.">
           </label>
           <div class="row">
-            <button id="exportSettingsBtn" type="button" title="Download current runtime settings as JSON.">Export settings</button>
+            <button id="exportSettingsBtn" type="button" title="Download current runtime settings as JSON.">Export</button>
             <button id="resetSettingsBtn" type="button" title="Restore default runtime settings.">Reset</button>
           </div>
-          <p class="hint">Browser MIDI and SysEx privileges still require the browser permission prompt.</p>
         </details>
 
         <details class="section stack fold">
-          <summary>Device Probes</summary>
+          <summary>Read</summary>
           <button id="identityBtn" type="button" disabled title="Send the standard MIDI identity request.">Identity</button>
           <button id="teEchoBtn" type="button" disabled title="Send a TE echo SysEx request and log the response.">TE echo</button>
           <button id="fileInitBtn" type="button" disabled title="Initialize the inferred TE file protocol and read chunk size.">File init</button>
@@ -170,34 +166,34 @@
         </details>
 
         <details class="section stack fold" open>
-          <summary>Sample Import</summary>
+          <summary>Files</summary>
           <label class="drop" id="dropZone">
             <input id="fileInput" type="file" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.pcm,.raw,.json">
-            <span>Drop audio, PCM, or manifest JSON</span>
+            <span>Drop audio / PCM / JSON</span>
           </label>
           <div class="row">
-            <button id="exportManifestBtn" type="button" disabled title="Export local samples and imported project data as JSON.">Export manifest</button>
-            <button id="compareDeviceBtn" type="button" disabled title="Compare local samples with the cached device tree by filename and size.">Compare device</button>
-            <button id="downloadAllBtn" type="button" disabled title="Download every local audio buffer as WAV. Missing hardware buffers are skipped.">Download all WAV</button>
-            <button id="downloadSelectedBtn" type="button" disabled title="Download selected local audio buffers as WAV. Missing hardware buffers are skipped.">Download selected</button>
+            <button id="exportManifestBtn" type="button" disabled title="Export local samples and imported project data as JSON.">Manifest</button>
+            <button id="compareDeviceBtn" type="button" disabled title="Compare local samples with the cached device tree by filename and size.">Compare</button>
+            <button id="downloadAllBtn" type="button" disabled title="Download every local audio buffer as WAV. Missing hardware buffers are skipped.">All WAV</button>
+            <button id="downloadSelectedBtn" type="button" disabled title="Download selected local audio buffers as WAV. Missing hardware buffers are skipped.">Selected WAV</button>
           </div>
         </details>
 
         <details class="section stack fold">
-          <summary>Write Surface</summary>
-          <button id="uploadSampleBtn" type="button" disabled title="Requires write privilege unlock and verified transfer implementation.">Upload sample</button>
-          <button id="deleteSampleBtn" type="button" disabled title="Requires write privilege unlock and verified delete command.">Delete sample</button>
-          <button id="moveFileBtn" type="button" disabled title="Requires write privilege unlock and verified move command.">Move file</button>
-          <button id="writeMetadataBtn" type="button" disabled title="Requires write privilege unlock and verified metadata command.">Write metadata</button>
-          <button id="devicePlaybackBtn" type="button" disabled title="Requires write privilege unlock and validated playback command.">Device playback</button>
-          <button id="backupRestoreBtn" type="button" disabled title="Requires write privilege unlock and verified project archive behavior.">Backup / restore</button>
+          <summary>Write</summary>
+          <button id="uploadSampleBtn" type="button" disabled title="Requires write privilege unlock and verified transfer implementation.">Upload</button>
+          <button id="deleteSampleBtn" type="button" disabled title="Requires write privilege unlock and verified delete command.">Delete</button>
+          <button id="moveFileBtn" type="button" disabled title="Requires write privilege unlock and verified move command.">Move</button>
+          <button id="writeMetadataBtn" type="button" disabled title="Requires write privilege unlock and verified metadata command.">Metadata</button>
+          <button id="devicePlaybackBtn" type="button" disabled title="Requires write privilege unlock and validated playback command.">Device play</button>
+          <button id="backupRestoreBtn" type="button" disabled title="Requires write privilege unlock and verified project archive behavior.">Backup</button>
         </details>
       </aside>
 
       <section class="main daw-workspace">
         <section class="panel section transport-panel">
           <div class="section-header">
-            <h2>Transport / Device</h2>
+            <h2>Device</h2>
             <div class="transport-actions">
               <button id="miniPanicBtn" type="button" title="Send all-notes-off and held-note note-offs.">Panic</button>
               <button id="miniClockStartBtn" type="button" title="Send MIDI clock start.">Start</button>
@@ -227,9 +223,9 @@
 
         <section class="panel section timeline-panel">
           <div class="section-header">
-            <h2>Live Timeline</h2>
+            <h2>Timeline</h2>
             <div class="row">
-              <button id="playSelectedBtn" type="button" disabled title="Play the selected local sample and show it on the timeline.">Play selected</button>
+              <button id="playSelectedBtn" type="button" disabled title="Play the selected local sample and show it on the timeline.">Play</button>
               <button id="stopTimelineBtn" type="button" disabled title="Stop local sample playback and reset the playhead.">Stop</button>
               <span id="timelineTime" class="mini-stat">00:00.00 / --</span>
             </div>
@@ -243,10 +239,10 @@
 
         <section class="panel section sample-panel">
           <div class="section-header">
-            <h2>Sample Pool</h2>
+            <h2>Samples</h2>
             <div class="row">
               <span id="libraryStats" class="mini-stat">0 / 999 slots</span>
-              <input id="searchInput" type="search" placeholder="Filter samples">
+              <input id="searchInput" type="search" placeholder="filter">
               <button id="selectAllBtn" type="button" disabled title="Select all visible samples.">Select all</button>
               <button id="clearSelectionBtn" type="button" disabled title="Clear sample selection.">Clear</button>
             </div>
@@ -278,7 +274,7 @@
 
         <section class="panel section arrangement-panel">
           <div class="section-header">
-            <h2>Arrangement</h2>
+            <h2>Project</h2>
             <div class="row">
               <span id="projectSummary" class="mini-stat">0 scenes / 0 tracks / 0 pads</span>
               <label class="inline-label">
@@ -318,26 +314,26 @@
 
         <section class="panel section tree-panel">
           <div class="section-header">
-            <h2>Hardware Files</h2>
+            <h2>Hardware</h2>
             <div class="row">
-              <button id="scanTreeBtn" type="button" disabled title="Recursively list cached device folders up to the configured scan depth.">Recursive scan</button>
-              <button id="exportTreeBtn" type="button" disabled title="Export the cached read-only device tree as JSON.">Export tree</button>
-              <button id="clearTreeBtn" type="button" title="Clear cached read-only device tree results.">Clear tree</button>
+              <button id="scanTreeBtn" type="button" disabled title="Recursively list cached device folders up to the configured scan depth.">Scan</button>
+              <button id="exportTreeBtn" type="button" disabled title="Export the cached read-only device tree as JSON.">Export</button>
+              <button id="clearTreeBtn" type="button" title="Clear cached read-only device tree results.">Clear</button>
             </div>
           </div>
           <div id="deviceTree" class="item-list muted">No device folders read.</div>
         </section>
 
-        <section class="panel section proposals-panel">
+        <section class="panel section proposals-panel" hidden>
           <h2>Function Queue</h2>
           <div id="proposalList" class="item-list"></div>
         </section>
 
         <section class="panel section log-panel">
           <div class="section-header">
-            <h2>Session Log</h2>
+            <h2>Log</h2>
             <div class="row">
-              <button id="exportLogBtn" type="button" title="Export the current protocol log as a text file.">Export log</button>
+              <button id="exportLogBtn" type="button" title="Export the current protocol log as a text file.">Export</button>
               <button id="clearLogBtn" type="button" title="Clear the protocol log.">Clear</button>
             </div>
           </div>

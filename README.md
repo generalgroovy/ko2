@@ -1,6 +1,6 @@
 # KO II Web MIDI Lab
 
-Static DAW-style browser control surface for exploring Teenage Engineering EP / KO II communication over USB MIDI.
+Static EP Sample Tool-inspired browser control surface for exploring Teenage Engineering EP / KO II communication over USB MIDI.
 
 This project is intentionally conservative. It implements Web MIDI connection, local sample import/export, TE SysEx frame helpers, and read-only protocol probes in a professional hardware-editor workspace. Device-mutating commands are blocked by default.
 
@@ -12,13 +12,14 @@ This project is intentionally conservative. It implements Web MIDI connection, l
 - Includes manual port refresh and browser MIDI diagnostics.
 - Exposes runtime settings for SysEx requests, read probe privilege, write-action visibility, port selection, MIDI listening, logging, poll timing, device ID, and request timeouts.
 - Implements proposal surfaces for recursive device-tree scanning, cached tree export, protocol log export, local-vs-device sample comparison, and pad assignment rendering from imported metadata.
-- Uses a DAW workspace layout with a left inspector, transport/device strip, central sample and arrangement panels, hardware file browser, function queue, and session log.
+- Uses a compact hardware-editor layout with a left action rail, device strip, sample-slot table, pad grid, timeline, hardware browser, and session log.
 - Mirrors official EP Sample Tool reference targets with ten sample banks, 999-slot awareness, assignment dots, and a group A-D / 12-pad grid fed by imported metadata.
+- Adds direct slot actions for select, local play, assigned-pad MIDI trigger, and WAV export.
 - Adds an interactable live timeline for local sample playback, imported project clips, and incoming MIDI activity.
 - Imports raw `.pcm` and `.raw` files using configurable sample rate, channels, and bit depth, converting them to playable browser audio.
 - Can auto-load read-only project metadata after MIDI/SysEx connection instead of requiring each probe button to be pressed manually.
 - Adds live performance controls: configurable trigger mode, MIDI channel, base note, velocity, gate, hold, keyboard shortcuts, pad context menu, MIDI panic, and MIDI clock messages.
-- Reworks the GUI into a conventional DAW-style control surface with a Matrix-inspired green-on-black visual system and session log.
+- Reworks the GUI toward a dense Teenage Engineering-style sample management tool with minimal explanatory copy.
 - Adds a live KO II monitor for browser-observable MIDI input, MIDI output, SysEx/file probe state, held notes, clock, and local preview state.
 - Sends the universal MIDI identity request.
 - Parses Teenage Engineering identity replies when present.
