@@ -1,5 +1,13 @@
 # KO II Web MIDI Lab
 
+**This earlier prototype is superseded by [KO II Sampler DAW](https://github.com/generalgroovy/ko),
+the main KO II project.** This repository remains available as a browser reference.
+For continued use, export your local samples with the WAV buttons and export the
+JSON manifest, then use **Samples > IMPORT WEB LIBRARY** in the desktop app.
+Keep the downloaded WAV filenames unchanged. See the
+[migration guide](https://github.com/generalgroovy/ko/blob/main/docs/web-library-migration.md)
+for details. The manifest alone does not contain audio.
+
 Static browser lab for exploring Teenage Engineering EP / KO II communication over USB MIDI.
 
 This project is intentionally conservative. It implements Web MIDI connection, local sample import/export, TE SysEx frame helpers, and read-only protocol probes. Device-mutating commands are blocked by default.
